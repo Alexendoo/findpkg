@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{ensure, Context, Result};
 use once_cell::unsync::Lazy;
 use regex::{Match, Regex};
 use std::collections::HashMap;
@@ -54,6 +54,11 @@ fn read_packages(reader: impl Read) -> Result<HashMap<PathBuf, Package>> {
         file.read_to_string(write)?;
     }
 
+    for (path, package) in &packages {
+        ensure!(!package.desc.is_empty(), "expected package.desc: {:?}", path);
+        ensure!(!package.files.is_empty(), "expected package.files: {:?}", path);
+    }
+
     Ok(packages)
 }
 
@@ -61,10 +66,6 @@ fn main() -> Result<()> {
     let core = File::open("./core.files")?;
 
     let packages = read_packages(core)?;
-
-    for package in packages.values() {
-        println!("{}", package.desc)
-    }
 
     Ok(())
 }
