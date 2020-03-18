@@ -1,6 +1,9 @@
 use anyhow::{ensure, Context, Result};
+use fst::automaton::Levenshtein;
+use fst::{IntoStreamer, MapBuilder, Streamer};
 use once_cell::unsync::Lazy;
 use regex::{Match, Regex};
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::io::{self, Read};
@@ -76,7 +79,7 @@ fn read_packages(reader: impl Read) -> Result<Packages> {
     Ok(packages)
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct Provider<'a> {
     package_name: &'a str,
     path: &'a str,
@@ -118,10 +121,29 @@ fn main() -> Result<()> {
     let packages = read_packages(core)?;
     let bins = get_providers(&packages)?;
 
-    for (bin, provider) in bins {
-        eprintln!("bin = {:#?}", bin);
-        eprintln!("provider = {:#?}", provider);
+    let mut builder = MapBuilder::memory();
+    let mut buffer: Vec<u8> = Vec::new();
+
+    for (bin, providers) in bins {
+        let index = buffer.len() as u64;
+        bincode::serialize_into(&mut buffer, &providers)?;
+
+        builder.insert(bin, index)?;
     }
+
+    let map = builder.into_map();
+
+    let query = Levenshtein::new("ls", 0)?;
+
+    let mut stream = map.search(&query).into_stream();
+    while let Some((k, v)) = stream.next() {
+        let binary = String::from_utf8_lossy(k);
+
+        let start = v as usize;
+        let packages: Vec<Provider> = bincode::deserialize(&buffer[start..])?;
+    }
+
+    // eprintln!("map = {:#?}", map);
 
     Ok(())
 }
