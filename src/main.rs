@@ -2,20 +2,21 @@ use anyhow::{ensure, Context, Result};
 use fst::automaton::Levenshtein;
 use fst::{IntoStreamer, MapBuilder, Streamer};
 use once_cell::unsync::Lazy;
-use regex::{Match, Regex};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
-use std::io::{self, Read};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use tar::{Archive, EntryType};
-use tempfile::TempDir;
 
 #[derive(Debug, Default)]
 struct Package {
     desc: String,
     files: String,
 }
+
+type Packages = HashMap<PathBuf, Package>;
 
 fn re(section: &str) -> Regex {
     Regex::new(section).unwrap()
@@ -30,14 +31,6 @@ fn get_section<'a>(re: &Regex, text: &'a str) -> Result<&'a str> {
         .map(|capture| capture.as_str())
         .context("no captures")
 }
-
-fn tempdir() -> io::Result<TempDir> {
-    tempfile::Builder::new()
-        .prefix(env!("CARGO_PKG_NAME"))
-        .tempdir()
-}
-
-type Packages = HashMap<PathBuf, Package>;
 
 fn read_packages(reader: impl Read) -> Result<Packages> {
     let mut archive = Archive::new(reader);
@@ -85,10 +78,10 @@ struct Provider<'a> {
     path: &'a str,
 }
 
-fn put_providers<'a>(
-    packages: &'a Packages,
-    out: &mut BTreeMap<&'a str, Vec<Provider<'a>>>,
-) -> Result<()> {
+type Providers<'a> = Vec<Provider<'a>>;
+type ProviderMap<'a> = BTreeMap<&'a str, Providers<'a>>;
+
+fn put_providers<'a>(packages: &'a Packages, out: &mut ProviderMap<'a>) -> Result<()> {
     for package in packages.values() {
         let name = get_section(&NAME_RE, &package.desc)?;
         let files = get_section(&FILES_RE, &package.files)?;
@@ -142,7 +135,7 @@ fn main() -> Result<()> {
         let binary = String::from_utf8_lossy(k);
 
         let start = v as usize;
-        let packages: Vec<Provider> = bincode::deserialize(&buffer[start..])?;
+        let packages: Providers = bincode::deserialize(&buffer[start..])?;
     }
 
     // eprintln!("map = {:#?}", map);
