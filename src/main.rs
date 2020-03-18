@@ -85,9 +85,10 @@ struct Provider<'a> {
     path: &'a str,
 }
 
-fn get_providers(packages: &Packages) -> Result<BTreeMap<&str, Vec<Provider>>> {
-    let mut bins: BTreeMap<&str, Vec<Provider>> = BTreeMap::new();
-
+fn put_providers<'a>(
+    packages: &'a Packages,
+    out: &mut BTreeMap<&'a str, Vec<Provider<'a>>>,
+) -> Result<()> {
     for package in packages.values() {
         let name = get_section(&NAME_RE, &package.desc)?;
         let files = get_section(&FILES_RE, &package.files)?;
@@ -105,21 +106,22 @@ fn get_providers(packages: &Packages) -> Result<BTreeMap<&str, Vec<Provider>>> {
                 .to_str()
                 .context("invalid UTF-8")?;
 
-            bins.entry(bin_name).or_default().push(Provider {
+            out.entry(bin_name).or_default().push(Provider {
                 package_name: name,
                 path: file,
             });
         }
     }
 
-    Ok(bins)
+    Ok(())
 }
 
 fn main() -> Result<()> {
     let core = File::open("./core.files")?;
 
     let packages = read_packages(core)?;
-    let bins = get_providers(&packages)?;
+    let mut bins = BTreeMap::new();
+    put_providers(&packages, &mut bins)?;
 
     let mut builder = MapBuilder::memory();
     let mut buffer: Vec<u8> = Vec::new();
