@@ -1,10 +1,12 @@
 use anyhow::{ensure, Context, Result};
 use fst::automaton::Levenshtein;
 use fst::{IntoStreamer, MapBuilder, Streamer};
+use getopts::Options;
 use once_cell::unsync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
+use std::env;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -109,7 +111,7 @@ fn put_providers<'a>(packages: &'a Packages, out: &mut ProviderMap<'a>) -> Resul
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn index() -> Result<()> {
     let core = File::open("./core.files")?;
 
     let packages = read_packages(core)?;
@@ -126,19 +128,44 @@ fn main() -> Result<()> {
         builder.insert(bin, index)?;
     }
 
-    let map = builder.into_map();
+    Ok(())
+}
 
-    let query = Levenshtein::new("ls", 0)?;
+const VERSION: &str = concat!(env!("CARGO_PKG_NAME"), " ", env!("CARGO_PKG_VERSION"));
 
-    let mut stream = map.search(&query).into_stream();
-    while let Some((k, v)) = stream.next() {
-        let binary = String::from_utf8_lossy(k);
+fn print_help(opts: Options) {
+    print!("{}", opts.usage(VERSION));
+}
 
-        let start = v as usize;
-        let packages: Providers = bincode::deserialize(&buffer[start..])?;
+fn print_version(opts: Options) {
+    println!("{}", VERSION);
+}
+
+fn main() -> Result<()> {
+    let args = env::args().skip(1);
+
+    let mut opts = Options::new();
+    opts.optflag("h", "help", "Print this help menu");
+    opts.optflag("v", "version", "Print version information");
+
+    let matches = opts.parse(args)?;
+
+    if matches.opt_present("h") {
+        print_help(opts);
+        return Ok(());
     }
 
-    // eprintln!("map = {:#?}", map);
+    if matches.opt_present("v") {
+        print_version(opts);
+        return Ok(());
+    }
+
+    let mut free = matches.free.into_iter();
+
+    match free.next().as_deref() {
+        Some("index") => index()?,
+        _ => print_help(opts),
+    }
 
     Ok(())
 }
