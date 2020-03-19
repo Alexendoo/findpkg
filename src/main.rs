@@ -1,14 +1,15 @@
 use anyhow::{ensure, Context, Result};
 use fst::automaton::Levenshtein;
-use fst::{IntoStreamer, MapBuilder, Streamer};
+use fst::{IntoStreamer, Map, MapBuilder, Streamer};
 use getopts::Options;
+use memmap::Mmap;
 use once_cell::unsync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::env;
 use std::fs::File;
-use std::io::Read;
+use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 use tar::{Archive, EntryType};
 
@@ -111,6 +112,15 @@ fn put_providers<'a>(packages: &'a Packages, out: &mut ProviderMap<'a>) -> Resul
     Ok(())
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct Header {
+    version: u64,
+    fst_len: u64,
+}
+
+const HEADER_VERSION: u64 = 1;
+const HEADER_SIZE: usize = 16;
+
 fn index() -> Result<()> {
     let core = File::open("./core.files")?;
 
@@ -128,17 +138,60 @@ fn index() -> Result<()> {
         builder.insert(bin, index)?;
     }
 
+    let map = builder.into_inner()?;
+
+    let header = Header {
+        version: HEADER_VERSION,
+        fst_len: map.len() as u64,
+    };
+
+    let mut out = File::create("./out.db")?;
+
+    let header_bytes = bincode::serialize(&header)?;
+    assert_eq!(header_bytes.len(), HEADER_SIZE);
+
+    out.write_all(&header_bytes)?;
+    out.write_all(&map)?;
+    out.write_all(&buffer)?;
+
     Ok(())
 }
 
-const VERSION: &str = concat!(env!("CARGO_PKG_NAME"), " ", env!("CARGO_PKG_VERSION"));
+fn search(command: &str) -> Result<()> {
+    let db_file = File::open("./out.db")?;
+    let mmap = unsafe { Mmap::map(&db_file)? };
 
-fn print_help(opts: Options) {
-    print!("{}", opts.usage(VERSION));
+    let header: Header = bincode::deserialize(&mmap)?;
+
+    let fst_end = HEADER_SIZE + header.fst_len as usize;
+    let fst_bytes = &mmap[HEADER_SIZE..fst_end];
+
+    let map = Map::new(fst_bytes)?;
+    let packages = &mmap[fst_end..];
+
+    let lev = Levenshtein::new(command, 1)?;
+    let mut stream = map.search(lev).into_stream();
+
+    while let Some((bin, index)) = stream.next() {
+        eprintln!(
+            "(bin, index) = {:#?}",
+            (String::from_utf8_lossy(bin), index)
+        );
+    }
+
+    Ok(())
 }
 
-fn print_version(opts: Options) {
-    println!("{}", VERSION);
+fn print_help(opts: Options) {
+    print!("{}", opts.usage(env!("CARGO_PKG_NAME")));
+}
+
+fn print_version(_opts: Options) {
+    println!(concat!(
+        env!("CARGO_PKG_NAME"),
+        " ",
+        env!("CARGO_PKG_VERSION")
+    ));
 }
 
 fn main() -> Result<()> {
@@ -160,10 +213,11 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    let mut free = matches.free.into_iter();
+    let free: Vec<&str> = matches.free.iter().map(AsRef::as_ref).collect();
 
-    match free.next().as_deref() {
-        Some("index") => index()?,
+    match &free[..] {
+        ["index"] => index()?,
+        ["search", command] => search(command)?,
         _ => print_help(opts),
     }
 
