@@ -75,10 +75,16 @@ fn read_packages(reader: impl Read) -> Result<Packages> {
     Ok(packages)
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 struct Provider<'a> {
     package_name: &'a str,
     path: &'a str,
+}
+
+impl fmt::Debug for Provider<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {}", self.package_name, self.path)
+    }
 }
 
 type Providers<'a> = Vec<Provider<'a>>;
