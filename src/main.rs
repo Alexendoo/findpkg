@@ -8,6 +8,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::env;
+use std::fmt;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
@@ -120,12 +121,11 @@ fn put_providers<'a>(packages: &'a Packages, out: &mut ProviderMap<'a>) -> Resul
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Header {
-    version: u64,
+    version: [u8; 16],
     fst_len: u64,
 }
 
-const HEADER_VERSION: u64 = 1;
-const HEADER_SIZE: usize = 16;
+const HEADER_VERSION: [u8; 16] = *b"fcnf version 01\0";
 
 fn index() -> Result<()> {
     let core = File::open("./core.files")?;
@@ -153,10 +153,7 @@ fn index() -> Result<()> {
 
     let mut out = File::create("./out.db")?;
 
-    let header_bytes = bincode::serialize(&header)?;
-    assert_eq!(header_bytes.len(), HEADER_SIZE);
-
-    out.write_all(&header_bytes)?;
+    bincode::serialize_into(&mut out, &header)?;
     out.write_all(&map)?;
     out.write_all(&buffer)?;
 
@@ -169,8 +166,15 @@ fn search(command: &str) -> Result<()> {
 
     let header: Header = bincode::deserialize(&mmap)?;
 
-    let fst_end = HEADER_SIZE + header.fst_len as usize;
-    let fst_bytes = &mmap[HEADER_SIZE..fst_end];
+    ensure!(
+        header.version == HEADER_VERSION,
+        "unknown header version {:?}",
+        header.version
+    );
+
+    let header_size = bincode::serialized_size(&header)? as usize;
+    let fst_end = header_size + header.fst_len as usize;
+    let fst_bytes = &mmap[header_size..fst_end];
 
     let map = Map::new(fst_bytes)?;
     let packages = &mmap[fst_end..];
@@ -179,10 +183,10 @@ fn search(command: &str) -> Result<()> {
     let mut stream = map.search(lev).into_stream();
 
     while let Some((bin, index)) = stream.next() {
-        eprintln!(
-            "(bin, index) = {:#?}",
-            (String::from_utf8_lossy(bin), index)
-        );
+        let bin = String::from_utf8_lossy(bin);
+        let providers: Providers = bincode::deserialize(&packages[index as usize..])?;
+
+        eprintln!("(bin, index) = {:?}", (bin, providers));
     }
 
     Ok(())
