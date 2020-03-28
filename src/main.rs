@@ -1,4 +1,5 @@
 use anyhow::{ensure, Context, Result};
+use flate2::read::GzDecoder;
 use fst::automaton::Levenshtein;
 use fst::{IntoStreamer, Map, MapBuilder, Streamer};
 use getopts::Options;
@@ -37,7 +38,8 @@ fn get_section<'a>(re: &Regex, text: &'a str) -> Result<&'a str> {
 }
 
 fn read_packages(reader: impl Read) -> Result<Packages> {
-    let mut archive = Archive::new(reader);
+    let gz = GzDecoder::new(reader);
+    let mut archive = Archive::new(gz);
     let mut packages: HashMap<PathBuf, Package> = HashMap::new();
 
     for file in archive.entries()? {
@@ -128,7 +130,7 @@ struct Header {
 const HEADER_VERSION: [u8; 16] = *b"fcnf version 01\0";
 
 fn index() -> Result<()> {
-    let core = File::open("./core.files")?;
+    let core = File::open("./core.files.tar.gz")?;
 
     let packages = read_packages(core)?;
     let mut bins = BTreeMap::new();
