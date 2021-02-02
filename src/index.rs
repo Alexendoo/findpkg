@@ -13,7 +13,6 @@ pub fn index<W: Write>(mut out: W) -> Result<()> {
     let mut child = Command::new("cat")
         .args(&["list"])
         .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
         .spawn()?;
 
     let stdout = BufReader::new(child.stdout.take().unwrap());
@@ -83,6 +82,8 @@ pub fn index<W: Write>(mut out: W) -> Result<()> {
 
         provider_offset += providers.len() as u64;
     }
+
+    builder.finish()?;
 
     Ok(())
 }
