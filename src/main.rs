@@ -1,26 +1,37 @@
 mod intern;
 
 use anyhow::{ensure, Context, Result};
+use bytemuck::{bytes_of, cast_slice, Pod, Zeroable};
+use fst::MapBuilder;
 use getopts::Options;
-use intern::Interner;
-use std::env;
+use intern::{Interner, Span};
+use std::collections::{BTreeMap, HashSet};
+use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::process::{Command, Stdio};
+use std::{env, mem};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+#[repr(C)]
 struct Header {
     version: [u8; 16],
+
+    providers_len: u32,
+    strings_len: u32,
 }
 
 const HEADER_VERSION: [u8; 16] = *b"fcnf version 01\0";
 
+#[derive(Debug, Clone, Copy, Pod, Zeroable, PartialEq, Eq)]
+#[repr(C)]
 struct Provider {
-    package_name: u32,
-    path: u32,
+    repo: Span,
+    package_name: Span,
+    dir: Span,
 }
 
-fn index() -> Result<()> {
+fn index<W: Write>(mut out: W) -> Result<()> {
     let mut child = Command::new("cat")
         .args(&["list"])
         .stdout(Stdio::piped())
@@ -30,6 +41,8 @@ fn index() -> Result<()> {
     let stdout = BufReader::new(child.stdout.take().unwrap());
 
     let mut strings = Interner::new();
+    let mut bins = BTreeMap::<&str, Vec<Provider>>::new();
+    let mut providers_len = 0;
 
     for line in stdout.lines() {
         let line = line?;
@@ -51,48 +64,47 @@ fn index() -> Result<()> {
         }
 
         let _pkgver = pop()?;
-        let package_name = pop()?;
-        let repo = pop()?;
+        let package_name = strings.add(pop()?);
+        let repo = strings.add(pop()?);
 
-        println!("{}", dir);
+        let bin = strings.add(bin);
+        let dir = strings.add(dir);
 
-        // bins_owned.entry(bin.to_string()).push(Provider {
-        //     package_name,
-        //     path,
-        // });
+        providers_len += mem::size_of::<Provider>() as u32;
+        bins.entry(bin.str).or_default().push(Provider {
+            repo: repo.span,
+            package_name: package_name.span,
+            dir: dir.span,
+        });
     }
 
     let status = child.wait()?;
     ensure!(status.success(), "pacman failed: {}", status);
 
-    // println!("{:#?}", bins);
+    let header = Header {
+        version: HEADER_VERSION,
 
-    //    let packages = read_packages(core)?;
-    //    let mut bins = BTreeMap::new();
-    //    put_providers(&packages, &mut bins)?;
-    //
-    //    let mut builder = MapBuilder::memory();
-    //    let mut buffer: Vec<u8> = Vec::new();
-    //
-    //    for (bin, providers) in bins {
-    //        let index = buffer.len() as u64;
-    //        bincode::serialize_into(&mut buffer, &providers)?;
-    //
-    //        builder.insert(bin, index)?;
-    //    }
-    //
-    //    let map = builder.into_inner()?;
-    //
-    //    let header = Header {
-    //        version: HEADER_VERSION,
-    //        fst_len: map.len() as u64,
-    //    };
-    //
-    //    let mut out = File::create("./out.db")?;
-    //
-    //    bincode::serialize_into(&mut out, &header)?;
-    //    out.write_all(&map)?;
-    //    out.write_all(&buffer)?;
+        providers_len,
+        strings_len: strings.buf().len() as u32,
+    };
+
+    out.write_all(bytes_of(&header))?;
+
+    for (_, providers) in &bins {
+        out.write_all(cast_slice(&providers))?;
+    }
+
+    out.write_all(strings.buf().as_bytes())?;
+
+    let mut builder = MapBuilder::new(&mut out)?;
+
+    let mut provider_offset = 0;
+    for (bin, providers) in bins {
+        let len_shifted = (providers.len() as u64) << 32;
+        builder.insert(bin, provider_offset | len_shifted)?;
+
+        provider_offset += providers.len() as u64;
+    }
 
     Ok(())
 }
@@ -163,7 +175,7 @@ fn main() -> Result<()> {
     let free: Vec<&str> = matches.free.iter().map(AsRef::as_ref).collect();
 
     match &free[..] {
-        ["index"] => index()?,
+        ["index"] => index(File::create("./out.db")?)?,
         ["search", command] => search(command)?,
         _ => print_help(opts),
     }

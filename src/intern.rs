@@ -1,14 +1,22 @@
+use bytemuck::{Pod, Zeroable};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Pod, Zeroable)]
+#[repr(C)]
 pub struct Span {
-    start: u32,
-    end: u32,
+    pub start: u32,
+    pub end: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct InternedStr {
+    pub str: &'static str,
+    pub span: Span,
 }
 
 #[derive(Debug, Default)]
 pub struct Interner {
-    spans: HashMap<String, Span>,
+    spans: HashMap<&'static str, Span>,
     buf: String,
 }
 
@@ -17,19 +25,21 @@ impl Interner {
         Default::default()
     }
 
-    pub fn add(&mut self, s: &str) -> Span {
-        match self.spans.get(s) {
-            Some(&span) => span,
+    pub fn add(&mut self, s: &str) -> InternedStr {
+        match self.spans.get_key_value(s) {
+            Some((&key, &span)) => InternedStr { str: key, span },
             None => {
                 let start = self.buf.len() as u32;
                 let end = start + s.len() as u32;
 
                 let span = Span { start, end };
 
-                self.buf.push_str(s);
-                self.spans.insert(s.to_string(), span);
+                let leaked = Box::leak(s.to_string().into_boxed_str());
 
-                span
+                self.buf.push_str(leaked);
+                self.spans.insert(leaked, span);
+
+                InternedStr { str: leaked, span }
             }
         }
     }
@@ -47,8 +57,20 @@ mod tests {
     fn add() {
         let mut strings = Interner::new();
 
-        assert_eq!(strings.add("foo"), Span { start: 0, end: 3 });
-        assert_eq!(strings.add("bar"), Span { start: 3, end: 6 });
+        let mut add_assert = |s, start, end| {
+            let interned = strings.add(s);
+
+            assert_eq!(interned.str, s);
+            assert_eq!(interned.span, Span { start, end });
+        };
+
+        add_assert("foo", 0, 3);
+        add_assert("foo", 0, 3);
+
+        add_assert("bar", 3, 6);
+        add_assert("bar", 3, 6);
+
+        add_assert("foo", 0, 3);
 
         assert_eq!(strings.buf(), "foobar");
     }
