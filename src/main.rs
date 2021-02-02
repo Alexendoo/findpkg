@@ -1,54 +1,39 @@
 mod intern;
 
-use alpm::{Alpm, SigLevel, Usage};
 use anyhow::{ensure, Context, Result};
-use flate2::read::GzDecoder;
-use fst::automaton::Levenshtein;
-use fst::{IntoStreamer, Map, MapBuilder, Streamer};
 use getopts::Options;
-use memmap::Mmap;
-use once_cell::unsync::Lazy;
-use regex::Regex;
-use serde::{Deserialize, Serialize};
-use std::{collections::{BTreeMap, HashMap}, io::BufReader, process::Stdio};
-use std::env;
-use std::fmt;
-use std::fs::File;
-use std::io::prelude::*;
 use intern::Interner;
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use tar::{Archive, EntryType};
+use std::env;
+use std::io::prelude::*;
+use std::io::BufReader;
+use std::process::{Command, Stdio};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 struct Header {
     version: [u8; 16],
-    fst_len: u64,
 }
 
 const HEADER_VERSION: [u8; 16] = *b"fcnf version 01\0";
 
-#[derive(Serialize, Deserialize)]
 struct Provider {
     package_name: u32,
     path: u32,
 }
 
 fn index() -> Result<()> {
-    let mut child = Command::new("pacman")
-        .args(&["-Fl", "--machinereadable"])
+    let mut child = Command::new("cat")
+        .args(&["list"])
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .spawn()?;
 
     let stdout = BufReader::new(child.stdout.take().unwrap());
 
-    let mut paths = Interner::new();
-    let mut repos = Interner::new();
+    let mut strings = Interner::new();
 
     for line in stdout.lines() {
         let line = line?;
-        
+
         let mut parts = line.rsplit('\0');
         let mut pop = || parts.next().context("unexpeted end of line");
 
@@ -64,7 +49,7 @@ fn index() -> Result<()> {
         if !dir.ends_with("/bin/") {
             continue;
         }
-        
+
         let _pkgver = pop()?;
         let package_name = pop()?;
         let repo = pop()?;
