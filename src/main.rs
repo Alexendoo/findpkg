@@ -1,5 +1,6 @@
 mod index;
 mod intern;
+mod phf;
 mod search;
 
 use anyhow::Result;
@@ -16,7 +17,11 @@ use std::fs::File;
 pub struct Header {
     version: [u8; 16],
 
+    hash_key: u64,
+
     providers_len: u32,
+    disps_len: u32,
+    table_len: u32,
     strings_len: u32,
 }
 
@@ -28,6 +33,7 @@ pub struct Provider {
     repo: Span,
     package_name: Span,
     dir: Span,
+    bin: Span,
 }
 
 fn print_help(opts: Options) {

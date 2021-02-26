@@ -1,17 +1,16 @@
 use crate::intern::Span;
+use crate::phf;
 use crate::{Header, Provider, HEADER_VERSION};
 use anyhow::{ensure, Result};
-use bytemuck::{cast_slice, from_bytes};
+use bytemuck::{cast_slice, from_bytes, Pod};
 use fst::Map;
 use memmap::Mmap;
 use std::fs::File;
-use std::mem;
-use std::str::{self, Utf8Error};
+use std::{mem, str};
 
-fn get_str(buf: &[u8], span: Span) -> Result<&str, Utf8Error> {
-    let slice = &buf[span.start as usize..span.end as usize];
-
-    str::from_utf8(slice)
+fn split_cast<T: Pod>(slice: &[u8], mid: u32) -> (&[T], &[u8]) {
+    let (bytes, rest) = slice.split_at(mid as usize);
+    (cast_slice(bytes), rest)
 }
 
 pub fn search(command: &str) -> Result<()> {
@@ -27,24 +26,15 @@ pub fn search(command: &str) -> Result<()> {
         header.version
     );
 
-    let (provider_bytes, rest) = rest.split_at(header.providers_len as usize);
-    let providers: &[Provider] = cast_slice(provider_bytes);
+    let (providers, rest) = split_cast::<Provider>(rest, header.providers_len);
+    let (disps, rest) = split_cast::<phf::Disp>(rest, header.disps_len);
+    let (table, string_buf) = split_cast::<Span>(rest, header.table_len);
 
-    let (strings, fst_bytes) = rest.split_at(header.strings_len as usize);
+    let hashes = phf::hash(command, header.hash_key);
+    let index = phf::get_index(&hashes, disps, table.len());
 
-    let map = Map::new(fst_bytes)?;
-    let val = map.get(command).unwrap();
-
-    let start = (val & ((1 << 32) - 1)) as usize;
-    let end = start + (val >> 32) as usize;
-
-    for provider in &providers[start..end] {
-        let repo = get_str(strings, provider.repo)?;
-        let package_name = get_str(strings, provider.package_name)?;
-        let dir = get_str(strings, provider.dir)?;
-
-        println!("{}/{}\t/{}{}", repo, package_name, dir, command);
-    }
+    let providers_span = table[index as usize];
+    // let bin_providers
 
     Ok(())
 }
