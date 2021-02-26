@@ -18,7 +18,7 @@ pub fn index<W: Write>(mut out: W) -> Result<()> {
     let stdout = BufReader::new(child.stdout.take().unwrap());
 
     let mut strings = Interner::new();
-    let mut bins = BTreeMap::<&str, Vec<Provider>>::new();
+    let mut bins = BTreeMap::<String, Vec<Provider>>::new();
     let mut providers_len = 0;
 
     for line in stdout.lines() {
@@ -43,12 +43,10 @@ pub fn index<W: Write>(mut out: W) -> Result<()> {
         let _pkgver = pop()?;
         let package_name = strings.add(pop()?);
         let repo = strings.add(pop()?);
-
-        let bin = strings.add(bin);
         let dir = strings.add(dir);
 
         providers_len += mem::size_of::<Provider>() as u32;
-        bins.entry(bin.str).or_default().push(Provider {
+        bins.entry(bin.to_string()).or_default().push(Provider {
             repo: repo.span,
             package_name: package_name.span,
             dir: dir.span,
