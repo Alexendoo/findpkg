@@ -1,9 +1,6 @@
-use crate::intern::Span;
-use crate::phf;
-use crate::{Header, Provider, HEADER_VERSION};
+use crate::{phf, Header, Provider, Span, HEADER_VERSION};
 use anyhow::{ensure, Result};
 use bytemuck::{cast_slice, from_bytes, Pod};
-use fst::Map;
 use memmap::Mmap;
 use std::fs::File;
 use std::{mem, str};
@@ -23,7 +20,7 @@ pub fn search(command: &str) -> Result<()> {
     ensure!(
         header.version == HEADER_VERSION,
         "unknown header version {:?}",
-        header.version
+        String::from_utf8_lossy(&header.version),
     );
 
     let (providers, rest) = split_cast::<Provider>(rest, header.providers_len);
@@ -34,7 +31,36 @@ pub fn search(command: &str) -> Result<()> {
     let index = phf::get_index(&hashes, disps, table.len());
 
     let providers_span = table[index as usize];
-    // let bin_providers
+    let bin_providers = providers_span.get(providers);
+
+    if bin_providers[0].bin.get(string_buf) != command.as_bytes() {
+        println!("no match");
+        return Ok(());
+    }
+
+    let max_len = bin_providers
+        .iter()
+        .map(|prov| prov.repo.len() + prov.package_name.len())
+        .max()
+        .unwrap();
+
+    for provider in bin_providers {
+        let repo = provider.repo.get_str(string_buf);
+        let package_name = provider.package_name.get_str(string_buf);
+        let dir = provider.dir.get_str(string_buf);
+        let bin = provider.bin.get_str(string_buf);
+
+        let padding = max_len - repo.len();
+
+        println!(
+            "{}/{:padding$}\t/{}{}",
+            repo,
+            package_name,
+            dir,
+            bin,
+            padding = padding
+        );
+    }
 
     Ok(())
 }

@@ -7,10 +7,10 @@ use anyhow::Result;
 use bytemuck::{Pod, Zeroable};
 use getopts::Options;
 use index::index;
-use intern::Span;
 use search::search;
 use std::env;
 use std::fs::File;
+use std::str;
 
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
@@ -25,7 +25,28 @@ pub struct Header {
     strings_len: u32,
 }
 
-pub const HEADER_VERSION: [u8; 16] = *b"fcnf version 01\0";
+pub const HEADER_VERSION: [u8; 16] = *b"fcnf format 001\0";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Pod, Zeroable)]
+#[repr(C)]
+pub struct Span {
+    pub start: u32,
+    pub end: u32,
+}
+
+impl Span {
+    pub fn get<T>(self, slice: &[T]) -> &[T] {
+        &slice[self.start as usize..self.end as usize]
+    }
+
+    pub fn get_str(self, bytes: &[u8]) -> &str {
+        str::from_utf8(self.get(bytes)).unwrap()
+    }
+
+    pub fn len(self) -> usize {
+        (self.end - self.start) as usize
+    }
+}
 
 #[derive(Debug, Clone, Copy, Pod, Zeroable, PartialEq, Eq)]
 #[repr(C)]

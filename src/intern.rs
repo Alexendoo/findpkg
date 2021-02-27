@@ -1,21 +1,6 @@
-use bytemuck::{Pod, Zeroable};
+use crate::Span;
 use std::collections::HashMap;
 use std::str;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Pod, Zeroable)]
-#[repr(C)]
-pub struct Span {
-    pub start: u32,
-    pub end: u32,
-}
-
-impl Span {
-    pub fn get(self, buf: &[u8]) -> &str {
-        let slice = &buf[self.start as usize..self.end as usize];
-
-        str::from_utf8(slice).unwrap()
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct InternedStr {
@@ -51,6 +36,10 @@ impl Interner {
                 InternedStr { str: leaked, span }
             }
         }
+    }
+
+    pub fn get(&self, span: Span) -> &str {
+        span.get_str(self.buf())
     }
 
     pub fn buf(&self) -> &[u8] {

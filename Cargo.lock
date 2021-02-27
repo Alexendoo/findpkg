@@ -44,21 +44,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bytemuck",
- "fst",
  "getopts",
  "itertools",
  "memmap",
  "rand",
  "siphasher",
-]
-
-[[package]]
-name = "fst"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f7c13470d799474d44e2b9c6a0925807def7af4d120cd4de761433be76f7579"
-dependencies = [
- "utf8-ranges",
 ]
 
 [[package]]
@@ -198,12 +188,6 @@ name = "unicode-xid"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7fe0bb3479651439c9112f72b6c505038574c9fbb575ed1bf3b797fa39dd564"
-
-[[package]]
-name = "utf8-ranges"
-version = "1.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4ae116fef2b7fea257ed6440d3cfcff7f190865f170cdad00bb6465bf18ecba"
 
 [[package]]
 name = "wasi"

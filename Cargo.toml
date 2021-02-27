@@ -9,7 +9,6 @@ edition = "2018"
 [dependencies]
 anyhow = "1"
 bytemuck = { version = "1.5", features = ["derive"] }
-fst = { version = "0.4", features = ["levenshtein"] }
 getopts = "0.2"
 itertools = "0.10.0"
 memmap = "0.7"

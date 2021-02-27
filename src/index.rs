@@ -1,5 +1,5 @@
-use crate::intern::{Interner, Span};
-use crate::phf;
+use crate::intern::Interner;
+use crate::{phf, Span};
 use crate::{Header, Provider, HEADER_VERSION};
 use anyhow::{ensure, Context, Result};
 use bytemuck::{bytes_of, cast_slice, Pod};
@@ -11,17 +11,17 @@ use std::io::BufReader;
 use std::mem::size_of;
 use std::process::{Command, Stdio};
 
-fn find_providers(providers: &[Provider], buf: &[u8], target: &str) -> Span {
+fn find_providers(providers: &[Provider], strings: &Interner, target: &str) -> Span {
     fn partition_point(slice: &[Provider], pred: impl Fn(Provider) -> bool) -> usize {
         slice
             .binary_search_by(|&x| if pred(x) { Less } else { Greater })
             .unwrap_err()
     }
 
-    let start = partition_point(providers, |x| x.bin.get(buf) < target);
+    let start = partition_point(providers, |x| strings.get(x.bin) < target);
     let end = providers[start..]
         .iter()
-        .position(|x| x.bin.get(buf) != target)
+        .position(|x| strings.get(x.bin) != target)
         .map(|pos| pos + start)
         .unwrap_or(providers.len());
 
@@ -85,10 +85,10 @@ pub fn index<W: Write>(mut out: W) -> Result<()> {
 
     let buf = strings.buf();
 
-    providers.sort_unstable_by_key(|provider| provider.bin.get(buf));
+    providers.sort_unstable_by_key(|provider| strings.get(provider.bin));
     let bin_names: Vec<&str> = providers
         .iter()
-        .map(|provider| provider.bin.get(buf))
+        .map(|provider| strings.get(provider.bin))
         .dedup()
         .collect();
 
@@ -112,7 +112,7 @@ pub fn index<W: Write>(mut out: W) -> Result<()> {
 
     for &i in &hash_state.map {
         let bin = bin_names[i];
-        let provider_span = find_providers(&providers, buf, bin);
+        let provider_span = find_providers(&providers, &strings, bin);
 
         out.write_all(bytes_of(&provider_span))?;
     }
