@@ -6,9 +6,11 @@ use bytemuck::{bytes_of, cast_slice, Pod};
 use itertools::Itertools;
 use std::cmp::Ordering::{Greater, Less};
 use std::convert::TryInto;
+use std::fs::{self, File};
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::mem::size_of;
+use std::path::Path;
 use std::process::{Command, Stdio};
 
 fn find_providers(providers: &[Provider], strings: &Interner, target: &str) -> Span {
@@ -35,18 +37,27 @@ fn byte_len<T: Pod>(slice: &[T]) -> u32 {
     cast_slice::<T, u8>(slice).len().try_into().unwrap()
 }
 
-pub fn index<W: Write>(mut out: W) -> Result<()> {
-    let mut child = Command::new("cat")
-        .args(&["list"])
-        .stdout(Stdio::piped())
-        .spawn()?;
+pub fn index(db_path: &str) -> Result<()> {
+    if let Some(parent) = Path::new(db_path).parent() {
+        fs::create_dir_all(parent)?;
+    }
 
-    let stdout = BufReader::new(child.stdout.take().unwrap());
+    let temp_path = format!("{}.tmp", db_path);
+    let mut out = File::create(&temp_path)
+        .with_context(|| format!("Failed to create file: {}", &temp_path))?;
+
+    let mut child = Command::new("pacman")
+        .args(&["-Fl", "--machinereadable"])
+        .stdout(Stdio::piped())
+        .spawn()
+        .context("Failed to run pacman")?;
+
+    let child_stdout = BufReader::new(child.stdout.take().unwrap());
 
     let mut strings = Interner::new();
     let mut providers = Vec::new();
 
-    for line in stdout.lines() {
+    for line in child_stdout.lines() {
         let line = line?;
 
         let mut parts = line.rsplit('\0');
@@ -83,8 +94,6 @@ pub fn index<W: Write>(mut out: W) -> Result<()> {
     let status = child.wait()?;
     ensure!(status.success(), "pacman failed: {}", status);
 
-    let buf = strings.buf();
-
     providers.sort_unstable_by_key(|provider| strings.get(provider.bin));
     let bin_names: Vec<&str> = providers
         .iter()
@@ -103,7 +112,7 @@ pub fn index<W: Write>(mut out: W) -> Result<()> {
         providers_len: byte_len(&providers),
         disps_len: byte_len(&hash_state.disps),
         table_len: (bin_names.len() * size_of::<Span>()).try_into().unwrap(),
-        strings_len: buf.len().try_into().unwrap(),
+        strings_len: strings.buf().len().try_into().unwrap(),
     };
 
     out.write_all(bytes_of(&header))?;
@@ -117,7 +126,12 @@ pub fn index<W: Write>(mut out: W) -> Result<()> {
         out.write_all(bytes_of(&provider_span))?;
     }
 
-    out.write_all(buf)?;
+    out.write_all(strings.buf())?;
+
+    out.sync_all()?;
+    drop(out);
+
+    fs::rename(temp_path, db_path)?;
 
     Ok(())
 }

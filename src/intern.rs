@@ -16,7 +16,7 @@ pub struct Interner {
 
 impl Interner {
     pub fn new() -> Self {
-        Default::default()
+        Self::default()
     }
 
     pub fn add(&mut self, s: &str) -> InternedStr {
@@ -70,6 +70,6 @@ mod tests {
 
         add_assert("foo", 0, 3);
 
-        assert_eq!(strings.buf(), "foobar");
+        assert_eq!(strings.buf(), b"foobar");
     }
 }

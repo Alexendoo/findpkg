@@ -10,8 +10,8 @@ fn split_cast<T: Pod>(slice: &[u8], mid: u32) -> (&[T], &[u8]) {
     (cast_slice(bytes), rest)
 }
 
-pub fn search(command: &str) -> Result<()> {
-    let db_file = File::open("./out.db")?;
+pub fn search(command: &str, db_path: &str) -> Result<()> {
+    let db_file = File::open(db_path)?;
     let mmap = unsafe { Mmap::map(&db_file)? };
 
     let (header_bytes, rest) = mmap.split_at(mem::size_of::<Header>());
@@ -34,7 +34,6 @@ pub fn search(command: &str) -> Result<()> {
     let bin_providers = providers_span.get(providers);
 
     if bin_providers[0].bin.get(string_buf) != command.as_bytes() {
-        println!("no match");
         return Ok(());
     }
 
@@ -50,15 +49,13 @@ pub fn search(command: &str) -> Result<()> {
         let dir = provider.dir.get_str(string_buf);
         let bin = provider.bin.get_str(string_buf);
 
-        let padding = max_len - repo.len();
-
         println!(
             "{}/{:padding$}\t/{}{}",
             repo,
             package_name,
             dir,
             bin,
-            padding = padding
+            padding = max_len - repo.len(),
         );
     }
 
