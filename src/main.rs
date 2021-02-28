@@ -106,7 +106,7 @@ fn main() -> Result<()> {
     let db_path = matches.opt_str("database");
     let db_path = db_path.as_deref().unwrap_or("/var/lib/fcnf/database");
 
-    let free: Vec<&str> = matches.free.iter().map(AsRef::as_ref).collect();
+    let free: Vec<&str> = matches.free.iter().map(String::as_str).collect();
 
     match &free[..] {
         ["index"] => index(db_path)?,

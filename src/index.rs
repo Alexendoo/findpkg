@@ -10,7 +10,6 @@ use std::fs::{self, File};
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::mem::size_of;
-use std::path::Path;
 use std::process::{Command, Stdio};
 
 fn find_providers(providers: &[Provider], strings: &Interner, target: &str) -> Span {
@@ -38,10 +37,6 @@ fn byte_len<T: Pod>(slice: &[T]) -> u32 {
 }
 
 pub fn index(db_path: &str) -> Result<()> {
-    if let Some(parent) = Path::new(db_path).parent() {
-        fs::create_dir_all(parent)?;
-    }
-
     let temp_path = format!("{}.tmp", db_path);
     let mut out = File::create(&temp_path)
         .with_context(|| format!("Failed to create file: {}", &temp_path))?;
@@ -80,14 +75,11 @@ pub fn index(db_path: &str) -> Result<()> {
         let package_name = strings.add(pop()?);
         let repo = strings.add(pop()?);
 
-        let bin = strings.add(bin);
-        let dir = strings.add(dir);
-
         providers.push(Provider {
-            repo: repo.span,
-            package_name: package_name.span,
-            dir: dir.span,
-            bin: bin.span,
+            repo,
+            package_name,
+            dir: strings.add(bin),
+            bin: strings.add(dir),
         });
     }
 

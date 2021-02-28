@@ -2,15 +2,9 @@ use crate::Span;
 use std::collections::HashMap;
 use std::str;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct InternedStr {
-    pub str: &'static str,
-    pub span: Span,
-}
-
 #[derive(Debug, Default)]
 pub struct Interner {
-    spans: HashMap<&'static str, Span>,
+    spans: HashMap<String, Span>,
     buf: String,
 }
 
@@ -19,21 +13,19 @@ impl Interner {
         Self::default()
     }
 
-    pub fn add(&mut self, s: &str) -> InternedStr {
-        match self.spans.get_key_value(s) {
-            Some((&key, &span)) => InternedStr { str: key, span },
+    pub fn add(&mut self, s: &str) -> Span {
+        match self.spans.get(s) {
+            Some(&span) => span,
             None => {
                 let start = self.buf.len() as u32;
                 let end = start + s.len() as u32;
 
                 let span = Span { start, end };
 
-                let leaked = Box::leak(s.to_string().into_boxed_str());
+                self.buf.push_str(s);
+                self.spans.insert(s.to_string(), span);
 
-                self.buf.push_str(leaked);
-                self.spans.insert(leaked, span);
-
-                InternedStr { str: leaked, span }
+                span
             }
         }
     }
@@ -58,8 +50,8 @@ mod tests {
         let mut add_assert = |s, start, end| {
             let interned = strings.add(s);
 
-            assert_eq!(interned.str, s);
-            assert_eq!(interned.span, Span { start, end });
+            assert_eq!(strings.get(interned), s);
+            assert_eq!(interned, Span { start, end });
         };
 
         add_assert("foo", 0, 3);
