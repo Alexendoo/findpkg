@@ -1,8 +1,9 @@
 use crate::{phf, Header, Provider, Span, HEADER_VERSION};
-use anyhow::{ensure, Result};
+use anyhow::{anyhow, ensure, Result};
 use bytemuck::{cast_slice, from_bytes, Pod};
 use memmap::Mmap;
 use std::fs::File;
+use std::io::ErrorKind;
 use std::{mem, str};
 
 fn split_cast<T: Pod>(slice: &[u8], mid: u32) -> (&[T], &[u8]) {
@@ -11,7 +12,13 @@ fn split_cast<T: Pod>(slice: &[u8], mid: u32) -> (&[T], &[u8]) {
 }
 
 pub fn search(command: &str, db_path: &str) -> Result<()> {
-    let db_file = File::open(db_path)?;
+    let db_file = File::open(db_path).map_err(|e| match e.kind() {
+        ErrorKind::NotFound => anyhow!(
+            "Database file not found: {}\n\nTry running `fast-command-not-found index`",
+            db_path
+        ),
+        _ => anyhow!("Failed to open database {}\n\n{}", db_path, e),
+    })?;
     let mmap = unsafe { Mmap::map(&db_file)? };
 
     let (header_bytes, rest) = mmap.split_at(mem::size_of::<Header>());

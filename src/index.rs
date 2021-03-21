@@ -53,10 +53,10 @@ pub fn index(db_path: &str) -> Result<()> {
     let mut providers = Vec::new();
 
     for line in child_stdout.lines() {
-        let line = line?;
+        let line = line.context("pacman stdout not valid UTF-8")?;
 
         let mut parts = line.rsplit('\0');
-        let mut pop = || parts.next().context("unexpeted end of line");
+        let mut pop = || parts.next().context("Unexpeted end of line");
 
         let path = pop()?;
 
@@ -84,7 +84,7 @@ pub fn index(db_path: &str) -> Result<()> {
     }
 
     let status = child.wait()?;
-    ensure!(status.success(), "pacman failed: {}", status);
+    ensure!(status.success(), "Pacman failed: {}", status);
 
     providers.sort_unstable_by_key(|provider| strings.get(provider.bin));
     let bin_names: Vec<&str> = providers
@@ -107,23 +107,29 @@ pub fn index(db_path: &str) -> Result<()> {
         strings_len: strings.buf().len().try_into().unwrap(),
     };
 
-    out.write_all(bytes_of(&header))?;
-    out.write_all(cast_slice(&providers))?;
-    out.write_all(cast_slice(&hash_state.disps))?;
+    let mut write = |bytes: &[u8]| {
+        out.write_all(bytes)
+            .with_context(|| format!("Failed writing to {}", &temp_path))
+    };
+
+    write(bytes_of(&header))?;
+    write(cast_slice(&providers))?;
+    write(cast_slice(&hash_state.disps))?;
 
     for &i in &hash_state.map {
         let bin = bin_names[i];
         let provider_span = find_providers(&providers, &strings, bin);
 
-        out.write_all(bytes_of(&provider_span))?;
+        write(bytes_of(&provider_span))?;
     }
 
-    out.write_all(strings.buf())?;
+    write(strings.buf())?;
 
     out.sync_all()?;
     drop(out);
 
-    fs::rename(temp_path, db_path)?;
+    fs::rename(&temp_path, db_path)
+        .with_context(|| format!("Failed to rename {} -> {}", &temp_path, db_path))?;
 
     Ok(())
 }
