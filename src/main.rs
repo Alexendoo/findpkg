@@ -87,7 +87,7 @@ fn main() -> Result<()> {
     opts.optopt(
         "",
         "database",
-        "Location of the database (default: /var/lib/fcnf/database)",
+        "Location of the database (default: /var/lib/fast-command-not-found/database)",
         "FILE",
     );
 
@@ -104,7 +104,7 @@ fn main() -> Result<()> {
     }
 
     let db_path = matches.opt_str("database");
-    let db_path = db_path.as_deref().unwrap_or("/var/lib/fcnf/database");
+    let db_path = db_path.as_deref().unwrap_or("/var/lib/fast-command-not-found/database");
 
     let free: Vec<&str> = matches.free.iter().map(String::as_str).collect();
 
