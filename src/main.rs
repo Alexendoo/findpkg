@@ -57,16 +57,13 @@ pub struct Provider {
 
 fn print_help(opts: Options) {
     const USAGE: &str = "Usage:
-    fast-command-not-found [OPTIONS] search COMMAND
+    fast-command-not-found [OPTIONS] COMMAND
         Shows any known packages that provide COMMAND
 
-        e.g. `fast-command-not-found search units` would display:
+        e.g. `fast-command-not-found units` would display:
 
         community/units    \t/usr/bin/units
-        community/plan9port\t/usr/lib/plan9/bin/units
-
-    fast-command-not-found [OPTIONS] index
-        Update the package database";
+        community/plan9port\t/usr/lib/plan9/bin/units";
 
     print!("{}", opts.usage(USAGE));
 }
@@ -90,15 +87,16 @@ fn main() -> Result<()> {
         "Location of the database (default: /var/lib/fast-command-not-found/database)",
         "FILE",
     );
+    opts.optflag("u", "update", "Update the database");
 
     let matches = opts.parse(args)?;
 
-    if matches.opt_present("h") {
+    if matches.opt_present("help") {
         print_help(opts);
         return Ok(());
     }
 
-    if matches.opt_present("v") {
+    if matches.opt_present("version") {
         print_version(opts);
         return Ok(());
     }
@@ -108,12 +106,17 @@ fn main() -> Result<()> {
         .as_deref()
         .unwrap_or("/var/lib/fast-command-not-found/database");
 
-    let free: Vec<&str> = matches.free.iter().map(String::as_str).collect();
-
-    match &free[..] {
-        ["index"] => index(db_path)?,
-        ["search", command] => search(command, db_path)?,
-        _ => print_help(opts),
+    if matches.opt_present("update") {
+        index(db_path)?;
+        return Ok(());
+    }
+    
+    if let [command] = &*matches.free {
+        if !search(command, db_path)? {
+            std::process::exit(127);
+        }
+    } else {
+        print_help(opts);
     }
 
     Ok(())

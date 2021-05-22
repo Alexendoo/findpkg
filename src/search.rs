@@ -11,7 +11,7 @@ fn split_cast<T: Pod>(slice: &[u8], mid: u32) -> (&[T], &[u8]) {
     (cast_slice(bytes), rest)
 }
 
-pub fn search(command: &str, db_path: &str) -> Result<()> {
+pub fn search(command: &str, db_path: &str) -> Result<bool> {
     let db_file = File::open(db_path).map_err(|e| match e.kind() {
         ErrorKind::NotFound => anyhow!(
             "Database file not found: {}\n\nTry running `fast-command-not-found index`",
@@ -41,7 +41,8 @@ pub fn search(command: &str, db_path: &str) -> Result<()> {
     let bin_providers = providers_span.get(providers);
 
     if bin_providers[0].bin.get(string_buf) != command.as_bytes() {
-        return Ok(());
+        println!("Command not found: {}", command);
+        return Ok(false);
     }
 
     let max_len = bin_providers
@@ -66,5 +67,5 @@ pub fn search(command: &str, db_path: &str) -> Result<()> {
         );
     }
 
-    Ok(())
+    Ok(true)
 }
