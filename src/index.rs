@@ -78,8 +78,8 @@ pub fn index(db_path: &str) -> Result<()> {
         providers.push(Provider {
             repo,
             package_name,
-            dir: strings.add(bin),
-            bin: strings.add(dir),
+            dir: strings.add(dir),
+            bin: strings.add(bin),
         });
     }
 
