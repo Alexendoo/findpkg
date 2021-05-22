@@ -4,7 +4,6 @@ use crate::{Header, Provider, HEADER_VERSION};
 use anyhow::{ensure, Context, Result};
 use bytemuck::{bytes_of, cast_slice, Pod};
 use itertools::Itertools;
-use std::cmp::Ordering::{Greater, Less};
 use std::convert::TryInto;
 use std::fs::{self, File};
 use std::io::prelude::*;
@@ -13,13 +12,7 @@ use std::mem::size_of;
 use std::process::{Command, Stdio};
 
 fn find_providers(providers: &[Provider], strings: &Interner, target: &str) -> Span {
-    fn partition_point(slice: &[Provider], pred: impl Fn(Provider) -> bool) -> usize {
-        slice
-            .binary_search_by(|&x| if pred(x) { Less } else { Greater })
-            .unwrap_err()
-    }
-
-    let start = partition_point(providers, |x| strings.get(x.bin) < target);
+    let start = providers.partition_point(|x| strings.get(x.bin) < target);
     let end = providers[start..]
         .iter()
         .position(|x| strings.get(x.bin) != target)
