@@ -10,7 +10,7 @@ edition = "2018"
 anyhow = "1"
 bytemuck = { version = "1.5", features = ["derive"] }
 getopts = "0.2"
-itertools = "0.10.0"
+itertools = "0.10"
 memmap = "0.7"
-rand = { version = "0.8.3", features = ["small_rng"] }
-siphasher = "0.3.3"
+rand = { version = "0.8", features = ["small_rng"] }
+siphasher = "0.3"
