@@ -1,59 +1,12 @@
-mod index;
-mod intern;
-mod phf;
-mod search;
-
-use anyhow::Result;
-use bytemuck::{Pod, Zeroable};
+use anyhow::{anyhow, ensure, Context, Result};
+use fast_command_not_found::index::index;
+use fast_command_not_found::search::{search, Entry};
 use getopts::Options;
-use index::index;
-use search::search;
+use memmap::Mmap;
+use std::fs::{self, File};
+use std::io::{BufReader, ErrorKind};
+use std::process::{Command, Stdio};
 use std::{env, str};
-
-#[derive(Debug, Clone, Copy, Pod, Zeroable)]
-#[repr(C)]
-pub struct Header {
-    version: [u8; 16],
-
-    hash_key: u64,
-
-    providers_len: u32,
-    disps_len: u32,
-    table_len: u32,
-    strings_len: u32,
-}
-
-pub const HEADER_VERSION: [u8; 16] = *b"fcnf format 001\0";
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Pod, Zeroable)]
-#[repr(C)]
-pub struct Span {
-    pub start: u32,
-    pub end: u32,
-}
-
-impl Span {
-    pub fn get<T>(self, slice: &[T]) -> &[T] {
-        &slice[self.start as usize..self.end as usize]
-    }
-
-    pub fn get_str(self, bytes: &[u8]) -> &str {
-        str::from_utf8(self.get(bytes)).unwrap()
-    }
-
-    pub fn len(self) -> usize {
-        (self.end - self.start) as usize
-    }
-}
-
-#[derive(Debug, Clone, Copy, Pod, Zeroable, PartialEq, Eq)]
-#[repr(C)]
-pub struct Provider {
-    repo: Span,
-    package_name: Span,
-    dir: Span,
-    bin: Span,
-}
 
 fn print_help(opts: Options) {
     const USAGE: &str = "Usage:
@@ -107,13 +60,48 @@ fn main() -> Result<()> {
         .unwrap_or("/var/lib/fast-command-not-found/database");
 
     if matches.opt_present("update") {
-        index(db_path)?;
+        let temp_path = format!("{}.tmp", db_path);
+        let mut out = File::create(&temp_path)
+            .with_context(|| format!("Failed to create file: {}", &temp_path))?;
+
+        let mut child = Command::new("pacman")
+            .args(&["-Fl", "--machinereadable"])
+            .stdout(Stdio::piped())
+            .spawn()
+            .context("Failed to run pacman")?;
+
+        let child_stdout = BufReader::new(child.stdout.take().unwrap());
+
+        index(child_stdout, &mut out)?;
+
+        let status = child.wait()?;
+        ensure!(status.success(), "Pacman failed: {}", status);
+
+        out.sync_all()?;
+        drop(out);
+
+        fs::rename(&temp_path, db_path)
+            .with_context(|| format!("Failed to rename {} -> {}", &temp_path, db_path))?;
+
         return Ok(());
     }
-    
+
     if let [command] = &*matches.free {
-        if !search(command, db_path)? {
-            std::process::exit(127);
+        let db_file = File::open(db_path).map_err(|e| match e.kind() {
+            ErrorKind::NotFound => anyhow!(
+                "Database file not found: {}\n\nTry running `fast-command-not-found --update`",
+                db_path
+            ),
+            _ => anyhow!("Failed to open database {}\n\n{}", db_path, e),
+        })?;
+        let mmap = unsafe { Mmap::map(&db_file)? };
+
+        match search(command, &mmap)? {
+            Entry::Found(msg) => print!("{}", msg),
+            Entry::NotFound => {
+                eprintln!("Command not found: {}", command);
+                std::process::exit(127);
+            }
         }
     } else {
         print_help(opts);

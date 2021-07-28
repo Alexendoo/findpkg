@@ -1,27 +1,21 @@
 use crate::{phf, Header, Provider, Span, HEADER_VERSION};
-use anyhow::{anyhow, ensure, Result};
+use anyhow::{ensure, Result};
 use bytemuck::{cast_slice, from_bytes, Pod};
-use memmap::Mmap;
-use std::fs::File;
-use std::io::ErrorKind;
+use std::fmt::Write;
 use std::{mem, str};
+
+pub enum Entry {
+    Found(String),
+    NotFound,
+}
 
 fn split_cast<T: Pod>(slice: &[u8], mid: u32) -> (&[T], &[u8]) {
     let (bytes, rest) = slice.split_at(mid as usize);
     (cast_slice(bytes), rest)
 }
 
-pub fn search(command: &str, db_path: &str) -> Result<bool> {
-    let db_file = File::open(db_path).map_err(|e| match e.kind() {
-        ErrorKind::NotFound => anyhow!(
-            "Database file not found: {}\n\nTry running `fast-command-not-found index`",
-            db_path
-        ),
-        _ => anyhow!("Failed to open database {}\n\n{}", db_path, e),
-    })?;
-    let mmap = unsafe { Mmap::map(&db_file)? };
-
-    let (header_bytes, rest) = mmap.split_at(mem::size_of::<Header>());
+pub fn search(command: &str, db: &[u8]) -> Result<Entry> {
+    let (header_bytes, rest) = db.split_at(mem::size_of::<Header>());
     let header: Header = *from_bytes(header_bytes);
 
     ensure!(
@@ -41,8 +35,8 @@ pub fn search(command: &str, db_path: &str) -> Result<bool> {
     let bin_providers = providers_span.get(providers);
 
     if bin_providers[0].bin.get(string_buf) != command.as_bytes() {
-        println!("Command not found: {}", command);
-        return Ok(false);
+        // println!("Command not found: {}", command);
+        return Ok(Entry::NotFound);
     }
 
     let max_len = bin_providers
@@ -51,21 +45,24 @@ pub fn search(command: &str, db_path: &str) -> Result<bool> {
         .max()
         .unwrap();
 
+    let mut out = String::new();
+
     for provider in bin_providers {
         let repo = provider.repo.get_str(string_buf);
         let package_name = provider.package_name.get_str(string_buf);
         let dir = provider.dir.get_str(string_buf);
         let bin = provider.bin.get_str(string_buf);
 
-        println!(
+        writeln!(
+            out,
             "{}/{:padding$}\t/{}{}",
             repo,
             package_name,
             dir,
             bin,
             padding = max_len - repo.len(),
-        );
+        )?;
     }
 
-    Ok(true)
+    Ok(Entry::Found(out))
 }

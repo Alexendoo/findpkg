@@ -1,15 +1,11 @@
 use crate::intern::Interner;
-use crate::{phf, Span};
-use crate::{Header, Provider, HEADER_VERSION};
-use anyhow::{ensure, Context, Result};
+use crate::{phf, Header, Provider, Span, HEADER_VERSION};
+use anyhow::{Context, Result};
 use bytemuck::{bytes_of, cast_slice, Pod};
 use itertools::Itertools;
 use std::convert::TryInto;
-use std::fs::{self, File};
 use std::io::prelude::*;
-use std::io::BufReader;
 use std::mem::size_of;
-use std::process::{Command, Stdio};
 
 fn find_providers(providers: &[Provider], strings: &Interner, target: &str) -> Span {
     let start = providers.partition_point(|x| strings.get(x.bin) < target);
@@ -29,23 +25,11 @@ fn byte_len<T: Pod>(slice: &[T]) -> u32 {
     cast_slice::<T, u8>(slice).len().try_into().unwrap()
 }
 
-pub fn index(db_path: &str) -> Result<()> {
-    let temp_path = format!("{}.tmp", db_path);
-    let mut out = File::create(&temp_path)
-        .with_context(|| format!("Failed to create file: {}", &temp_path))?;
-
-    let mut child = Command::new("pacman")
-        .args(&["-Fl", "--machinereadable"])
-        .stdout(Stdio::piped())
-        .spawn()
-        .context("Failed to run pacman")?;
-
-    let child_stdout = BufReader::new(child.stdout.take().unwrap());
-
+pub fn index(r: impl BufRead, mut w: impl Write) -> Result<()> {
     let mut strings = Interner::new();
     let mut providers = Vec::new();
 
-    for line in child_stdout.lines() {
+    for line in r.lines() {
         let line = line.context("pacman stdout not valid UTF-8")?;
 
         let mut parts = line.rsplit('\0');
@@ -76,9 +60,6 @@ pub fn index(db_path: &str) -> Result<()> {
         });
     }
 
-    let status = child.wait()?;
-    ensure!(status.success(), "Pacman failed: {}", status);
-
     providers.sort_unstable_by_key(|provider| strings.get(provider.bin));
     let bin_names: Vec<&str> = providers
         .iter()
@@ -100,29 +81,18 @@ pub fn index(db_path: &str) -> Result<()> {
         strings_len: strings.buf().len().try_into().unwrap(),
     };
 
-    let mut write = |bytes: &[u8]| {
-        out.write_all(bytes)
-            .with_context(|| format!("Failed writing to {}", &temp_path))
-    };
-
-    write(bytes_of(&header))?;
-    write(cast_slice(&providers))?;
-    write(cast_slice(&hash_state.disps))?;
+    w.write_all(bytes_of(&header))?;
+    w.write_all(cast_slice(&providers))?;
+    w.write_all(cast_slice(&hash_state.disps))?;
 
     for &i in &hash_state.map {
         let bin = bin_names[i];
         let provider_span = find_providers(&providers, &strings, bin);
 
-        write(bytes_of(&provider_span))?;
+        w.write_all(bytes_of(&provider_span))?;
     }
 
-    write(strings.buf())?;
-
-    out.sync_all()?;
-    drop(out);
-
-    fs::rename(&temp_path, db_path)
-        .with_context(|| format!("Failed to rename {} -> {}", &temp_path, db_path))?;
+    w.write_all(strings.buf())?;
 
     Ok(())
 }
