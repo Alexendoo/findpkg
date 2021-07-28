@@ -98,10 +98,7 @@ fn main() -> Result<()> {
 
         match search(command, &mmap)? {
             Entry::Found(msg) => print!("{}", msg),
-            Entry::NotFound => {
-                eprintln!("Command not found: {}", command);
-                std::process::exit(127);
-            }
+            Entry::NotFound => println!("Command not found: {}", command),
         }
     } else {
         print_help(opts);

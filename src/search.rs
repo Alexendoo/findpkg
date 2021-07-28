@@ -35,7 +35,6 @@ pub fn search(command: &str, db: &[u8]) -> Result<Entry> {
     let bin_providers = providers_span.get(providers);
 
     if bin_providers[0].bin.get(string_buf) != command.as_bytes() {
-        // println!("Command not found: {}", command);
         return Ok(Entry::NotFound);
     }
 
