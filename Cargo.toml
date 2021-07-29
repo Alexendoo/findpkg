@@ -16,5 +16,6 @@ rand = { version = "0.8", default-features = false, features = ["small_rng"] }
 siphasher = "0.3"
 
 [dev-dependencies]
-indoc = "1.0.3"
+indoc = "1"
+pretty_assertions = "0.7"
 zstd = "0.9"

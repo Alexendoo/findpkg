@@ -2,6 +2,7 @@ use anyhow::Result;
 use fast_command_not_found::index::index;
 use fast_command_not_found::search::{search, Entry};
 use indoc::indoc;
+use pretty_assertions::assert_eq;
 use std::io::BufReader;
 use zstd::Decoder;
 
@@ -15,7 +16,7 @@ fn create() -> Result<()> {
 
     index(reader, &mut db)?;
 
-    assert_eq!(db, DB);
+    assert!(db == DB);
 
     Ok(())
 }
