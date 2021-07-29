@@ -6,7 +6,7 @@ pub mod search;
 use bytemuck::{Pod, Zeroable};
 use std::str;
 
-#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Header {
     version: [u8; 16],
@@ -19,14 +19,20 @@ pub struct Header {
     strings_len: u32,
 }
 
+unsafe impl Pod for Header {}
+unsafe impl Zeroable for Header {}
+
 pub const HEADER_VERSION: [u8; 16] = *b"fcnf format 001\0";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Pod, Zeroable)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub struct Span {
     pub start: u32,
     pub end: u32,
 }
+
+unsafe impl Pod for Span {}
+unsafe impl Zeroable for Span {}
 
 impl Span {
     pub fn get<T>(self, slice: &[T]) -> &[T] {
@@ -42,7 +48,7 @@ impl Span {
     }
 }
 
-#[derive(Debug, Clone, Copy, Pod, Zeroable, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub struct Provider {
     repo: Span,
@@ -50,3 +56,6 @@ pub struct Provider {
     dir: Span,
     bin: Span,
 }
+
+unsafe impl Pod for Provider {}
+unsafe impl Zeroable for Provider {}

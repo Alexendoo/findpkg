@@ -14,9 +14,12 @@ pub struct Hashes {
     f2: u32,
 }
 
-#[derive(Clone, Copy, Pod, Zeroable)]
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub struct Disp(u32, u32);
+
+unsafe impl Pod for Disp {}
+unsafe impl Zeroable for Disp {}
 
 pub struct HashState {
     pub key: HashKey,
