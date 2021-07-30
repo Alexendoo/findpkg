@@ -6,7 +6,13 @@ use pretty_assertions::assert_eq;
 use std::io::BufReader;
 use zstd::Decoder;
 
-static DB: &[u8] = include_bytes!("database");
+static DB: &[u8] = {
+    #[repr(C, align(4096))]
+    struct PageAligned<T: ?Sized>(T);
+    static ALIGNED: &PageAligned<[u8]> = &PageAligned(*include_bytes!("database"));
+
+    &ALIGNED.0
+};
 static LIST_ZST: &[u8] = include_bytes!("list.zst");
 
 #[test]
