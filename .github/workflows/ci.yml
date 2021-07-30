@@ -31,8 +31,7 @@ jobs:
       - run: rustup toolchain install nightly --profile minimal --component miri,clippy,rustfmt
       - run: rustup default nightly
 
-      - run: cargo miri test --target x86_64-unknown-linux-gnu
-      - run: cargo miri test --target i686-unknown-linux-gnu
+      - run: cargo miri test
 
       - run: cargo clippy
       - run: cargo fmt --all -- --check

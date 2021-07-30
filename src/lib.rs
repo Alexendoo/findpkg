@@ -1,4 +1,5 @@
-#[allow(clippy::len_without_is_empty)]
+#![cfg(target_endian = "little")]
+#![allow(clippy::len_without_is_empty)]
 
 pub mod index;
 mod intern;
@@ -8,7 +9,7 @@ pub mod search;
 use bytemuck::{Pod, Zeroable};
 use std::str;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(C)]
 pub struct Header {
     version: [u8; 16],

@@ -1,6 +1,6 @@
 use anyhow::{anyhow, ensure, Context, Result};
 use fast_command_not_found::index::index;
-use fast_command_not_found::search::{search, Entry};
+use fast_command_not_found::search::{Database, Entry};
 use getopts::Options;
 use memmap::Mmap;
 use std::fs::{self, File};
@@ -96,7 +96,7 @@ fn main() -> Result<()> {
         })?;
         let mmap = unsafe { Mmap::map(&db_file)? };
 
-        match search(command, &mmap)? {
+        match Database::new(&mmap)?.search(command)? {
             Entry::Found(msg) => print!("{}", msg),
             Entry::NotFound => println!("Command not found: {}", command),
         }

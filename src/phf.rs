@@ -14,7 +14,7 @@ pub struct Hashes {
     f2: u32,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 #[repr(C)]
 pub struct Disp(u32, u32);
 

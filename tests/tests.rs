@@ -1,21 +1,19 @@
 use anyhow::Result;
 use fast_command_not_found::index::index;
-use fast_command_not_found::search::{search, Entry};
+use fast_command_not_found::search::{Database, Entry};
 use indoc::indoc;
 use pretty_assertions::assert_eq;
 use std::io::BufReader;
 use zstd::Decoder;
 
 macro_rules! include_db {
-    ($file:literal) => {
-        {
-            #[repr(C, align(4096))]
-            struct PageAligned<T: ?Sized>(T);
-            static ALIGNED: &PageAligned<[u8]> = &PageAligned(*include_bytes!($file));
+    ($file:literal) => {{
+        #[repr(C, align(4096))]
+        struct PageAligned<T: ?Sized>(T);
+        static ALIGNED: &PageAligned<[u8]> = &PageAligned(*include_bytes!($file));
 
-            &ALIGNED.0
-        }
-    };
+        &ALIGNED.0
+    }};
 }
 
 static DB: &[u8] = include_db!("database");
@@ -30,6 +28,7 @@ fn create_full() -> Result<()> {
 
     index(list, &mut db)?;
 
+    assert_eq!(Database::new(&db)?, Database::new(DB)?);
     assert!(db == DB);
 
     Ok(())
@@ -138,8 +137,10 @@ fn found() -> Result<()> {
         ),
     ];
 
+    let db = Database::new(DB)?;
+
     for &(command, expected) in cases {
-        match search(command, DB)? {
+        match db.search(command)? {
             Entry::Found(msg) => {
                 assert_eq!(msg, expected)
             }
@@ -165,8 +166,10 @@ fn not_found() -> Result<()> {
         "__pycache__",
     ];
 
+    let db = Database::new(DB)?;
+
     for &command in cases {
-        match search(command, DB)? {
+        match db.search(command)? {
             Entry::Found(_) => unreachable!(),
             Entry::NotFound => {}
         }

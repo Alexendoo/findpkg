@@ -12,10 +12,7 @@ fn bin_providers<'a>(providers: &[Provider], strings: &'a Interner) -> (Vec<&'a 
 
     for (i, provider) in providers.iter().enumerate() {
         let bin_name = strings.get(provider.bin);
-        let duplicate = names
-            .last()
-            .map(|&name| name == bin_name)
-            .unwrap_or(false);
+        let duplicate = names.last().map(|&name| name == bin_name).unwrap_or(false);
 
         if duplicate {
             spans.last_mut().unwrap().end += 1;
@@ -35,11 +32,11 @@ fn byte_len<T: Pod>(slice: &[T]) -> u32 {
     cast_slice::<T, u8>(slice).len().try_into().unwrap()
 }
 
-pub fn index(r: impl BufRead, mut w: impl Write) -> Result<()> {
+pub fn index(list: impl BufRead, mut db: impl Write) -> Result<()> {
     let mut strings = Interner::new();
     let mut providers = Vec::new();
 
-    for line in r.lines() {
+    for line in list.lines() {
         let line = line.context("pacman stdout not valid UTF-8")?;
 
         let mut parts = line.rsplit('\0');
@@ -88,17 +85,17 @@ pub fn index(r: impl BufRead, mut w: impl Write) -> Result<()> {
         strings_len: strings.buf().len().try_into().unwrap(),
     };
 
-    w.write_all(bytes_of(&header))?;
-    w.write_all(cast_slice(&providers))?;
-    w.write_all(cast_slice(&hash_state.disps))?;
+    db.write_all(bytes_of(&header))?;
+    db.write_all(cast_slice(&providers))?;
+    db.write_all(cast_slice(&hash_state.disps))?;
 
     for &i in &hash_state.map {
         let provider_span = bin_spans[i];
 
-        w.write_all(bytes_of(&provider_span))?;
+        db.write_all(bytes_of(&provider_span))?;
     }
 
-    w.write_all(strings.buf())?;
+    db.write_all(strings.buf())?;
 
     Ok(())
 }
