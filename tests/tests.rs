@@ -6,21 +6,29 @@ use pretty_assertions::assert_eq;
 use std::io::BufReader;
 use zstd::Decoder;
 
-static DB: &[u8] = {
-    #[repr(C, align(4096))]
-    struct PageAligned<T: ?Sized>(T);
-    static ALIGNED: &PageAligned<[u8]> = &PageAligned(*include_bytes!("database"));
+macro_rules! include_db {
+    ($file:literal) => {
+        {
+            #[repr(C, align(4096))]
+            struct PageAligned<T: ?Sized>(T);
+            static ALIGNED: &PageAligned<[u8]> = &PageAligned(*include_bytes!($file));
 
-    &ALIGNED.0
-};
+            &ALIGNED.0
+        }
+    };
+}
+
+static DB: &[u8] = include_db!("database");
+static SMALL_DB: &[u8] = include_db!("small-database");
 static LIST_ZST: &[u8] = include_bytes!("list.zst");
 
 #[test]
-fn create() -> Result<()> {
-    let reader = BufReader::new(Decoder::new(LIST_ZST)?);
+#[cfg_attr(miri, ignore)]
+fn create_full() -> Result<()> {
+    let list = BufReader::new(Decoder::new(LIST_ZST)?);
     let mut db = Vec::new();
 
-    index(reader, &mut db)?;
+    index(list, &mut db)?;
 
     assert!(db == DB);
 
@@ -28,8 +36,60 @@ fn create() -> Result<()> {
 }
 
 #[test]
+fn create_small() -> Result<()> {
+    let list = indoc! {"
+        core\0dash\00.5.11.3-1\0usr/
+        core\0dash\00.5.11.3-1\0usr/bin/
+        core\0dash\00.5.11.3-1\0usr/bin/dash
+        core\0dash\00.5.11.3-1\0usr/share/
+        core\0dash\00.5.11.3-1\0usr/share/licenses/
+        core\0dash\00.5.11.3-1\0usr/share/licenses/dash/
+        core\0dash\00.5.11.3-1\0usr/share/licenses/dash/COPYING
+        core\0dash\00.5.11.3-1\0usr/share/man/
+        core\0dash\00.5.11.3-1\0usr/share/man/man1/
+        core\0dash\00.5.11.3-1\0usr/share/man/man1/dash.1.gz
+        core\0diffutils\03.7-3\0usr/
+        core\0diffutils\03.7-3\0usr/bin/
+        core\0diffutils\03.7-3\0usr/bin/cmp
+        core\0diffutils\03.7-3\0usr/bin/diff
+        core\0diffutils\03.7-3\0usr/bin/diff3
+        core\0diffutils\03.7-3\0usr/bin/sdiff
+        core\0diffutils\03.7-3\0usr/share/
+        core\0diffutils\03.7-3\0usr/share/info/
+        core\0diffutils\03.7-3\0usr/share/info/diffutils.info.gz
+        core\0dnssec-anchors\020190629-3\0etc/
+        core\0dnssec-anchors\020190629-3\0etc/trusted-key.key
+        core\0dnssec-anchors\020190629-3\0usr/
+        core\0dnssec-anchors\020190629-3\0usr/share/
+        core\0dnssec-anchors\020190629-3\0usr/share/licenses/
+        core\0dnssec-anchors\020190629-3\0usr/share/licenses/dnssec-anchors/
+        core\0dnssec-anchors\020190629-3\0usr/share/licenses/dnssec-anchors/LICENSE
+        extra\0tree\01.8.0-2\0usr/
+        extra\0tree\01.8.0-2\0usr/bin/
+        extra\0tree\01.8.0-2\0usr/bin/tree
+        extra\0tree\01.8.0-2\0usr/share/
+        extra\0tree\01.8.0-2\0usr/share/man/
+        extra\0tree\01.8.0-2\0usr/share/man/man1/
+        extra\0tree\01.8.0-2\0usr/share/man/man1/tree.1.gz
+        community\0weechat\03.0-2\0usr/
+        community\0weechat\03.0-2\0usr/bin/
+        community\0weechat\03.0-2\0usr/bin/weechat
+        community\0weechat\03.0-2\0usr/bin/weechat-curses
+        community\0weechat\03.0-2\0usr/bin/weechat-headless
+    "};
+
+    let mut db = Vec::new();
+
+    index(list.as_bytes(), &mut db)?;
+
+    assert!(db == SMALL_DB);
+
+    Ok(())
+}
+
+#[test]
 fn found() -> Result<()> {
-    let cases = [
+    let cases = &[
         (
             "ls",
             indoc! {"
@@ -78,7 +138,7 @@ fn found() -> Result<()> {
         ),
     ];
 
-    for (command, expected) in cases {
+    for &(command, expected) in cases {
         match search(command, DB)? {
             Entry::Found(msg) => {
                 assert_eq!(msg, expected)
@@ -93,7 +153,7 @@ fn found() -> Result<()> {
 #[test]
 fn not_found() -> Result<()> {
     let long = "a-long-name-".repeat(8000);
-    let cases = [
+    let cases = &[
         "LS",
         "",
         "\0",
@@ -105,7 +165,7 @@ fn not_found() -> Result<()> {
         "__pycache__",
     ];
 
-    for command in cases {
+    for &command in cases {
         match search(command, DB)? {
             Entry::Found(_) => unreachable!(),
             Entry::NotFound => {}
