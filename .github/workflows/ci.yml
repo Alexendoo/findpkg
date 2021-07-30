@@ -10,8 +10,7 @@ jobs:
     strategy:
       matrix:
         rust-version:
-          - 1.40
-          - 1.48
+          - "1.51"
           - stable
 
     steps:
