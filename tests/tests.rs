@@ -3,6 +3,7 @@ use fast_command_not_found::index::index;
 use fast_command_not_found::search::{Database, Entry};
 use indoc::indoc;
 use pretty_assertions::assert_eq;
+use std::fmt;
 use std::io::BufReader;
 use zstd::Decoder;
 
@@ -14,6 +15,19 @@ macro_rules! include_db {
 
         &ALIGNED.0
     }};
+}
+
+fn assert_str_eq(left: &str, right: &str) {
+    #[derive(PartialEq)]
+    struct DisplayAsDebug<'a>(&'a str);
+
+    impl fmt::Debug for DisplayAsDebug<'_> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "{}", self.0)
+        }
+    }
+
+    assert_eq!(DisplayAsDebug(left), DisplayAsDebug(right));
 }
 
 static DB: &[u8] = include_db!("database");
@@ -28,7 +42,7 @@ fn create_full() -> Result<()> {
 
     index(list, &mut db)?;
 
-    assert_eq!(Database::new(&db)?, Database::new(DB)?);
+    assert_eq!(Database::new(DB)?, Database::new(&db)?);
     assert!(db == DB);
 
     Ok(())
@@ -92,8 +106,8 @@ fn found() -> Result<()> {
         (
             "ls",
             indoc! {"
-                community/9base    \t/opt/plan9/bin/ls
                 core/coreutils     \t/usr/bin/ls
+                community/9base    \t/opt/plan9/bin/ls
                 community/plan9port\t/usr/lib/plan9/bin/ls
             "},
         ),
@@ -112,27 +126,27 @@ fn found() -> Result<()> {
         (
             "R",
             indoc! {"
-                extra/r\t/usr/lib/R/bin/R
                 extra/r\t/usr/bin/R
+                extra/r\t/usr/lib/R/bin/R
             "},
         ),
         (
             "ld",
             indoc! {"
-                community/lm32-elf-binutils         \t/usr/lm32-elf/bin/ld
-                community/riscv32-elf-binutils      \t/usr/riscv32-elf/bin/ld
-                community/nds32le-elf-binutils      \t/usr/nds32le-elf/bin/ld
-                community/mingw-w64-binutils        \t/usr/i686-w64-mingw32/bin/ld
+                core/binutils                       \t/usr/bin/ld
                 community/aarch64-linux-gnu-binutils\t/usr/aarch64-linux-gnu/bin/ld
-                community/ppc64le-elf-binutils      \t/usr/ppc64le-elf/bin/ld
                 community/arm-none-eabi-binutils    \t/usr/arm-none-eabi/bin/ld
+                community/lm32-elf-binutils         \t/usr/lm32-elf/bin/ld
+                community/mingw-w64-binutils        \t/usr/i686-w64-mingw32/bin/ld
+                community/mingw-w64-binutils        \t/usr/x86_64-w64-mingw32/bin/ld
+                community/nds32le-elf-binutils      \t/usr/nds32le-elf/bin/ld
+                community/or1k-elf-binutils         \t/usr/or1k-elf/bin/ld
+                community/ppc64le-elf-binutils      \t/usr/ppc64le-elf/bin/ld
+                community/riscv32-elf-binutils      \t/usr/riscv32-elf/bin/ld
+                community/riscv64-elf-binutils      \t/usr/riscv64-elf/bin/ld
+                community/riscv64-linux-gnu-binutils\t/usr/riscv64-linux-gnu/bin/ld
                 community/sh2-elf-binutils          \t/usr/sh2-elf/bin/ld
                 community/sh4-elf-binutils          \t/usr/sh4-elf/bin/ld
-                community/riscv64-elf-binutils      \t/usr/riscv64-elf/bin/ld
-                community/or1k-elf-binutils         \t/usr/or1k-elf/bin/ld
-                community/mingw-w64-binutils        \t/usr/x86_64-w64-mingw32/bin/ld
-                community/riscv64-linux-gnu-binutils\t/usr/riscv64-linux-gnu/bin/ld
-                core/binutils                       \t/usr/bin/ld
             "},
         ),
     ];
@@ -142,7 +156,7 @@ fn found() -> Result<()> {
     for &(command, expected) in cases {
         match db.search(command)? {
             Entry::Found(msg) => {
-                assert_eq!(msg, expected)
+                assert_str_eq(expected, &msg)
             }
             Entry::NotFound => unreachable!(),
         }

@@ -67,7 +67,7 @@ pub fn index(list: impl BufRead, mut db: impl Write) -> Result<()> {
         });
     }
 
-    providers.sort_unstable_by_key(|provider| strings.get(provider.bin));
+    providers.sort_by_key(|provider| strings.get(provider.bin));
 
     let (bin_names, bin_spans) = bin_providers(&providers, &strings);
 
