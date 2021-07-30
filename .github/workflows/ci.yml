@@ -28,10 +28,20 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - run: rustup toolchain install nightly --profile minimal --component miri,clippy,rustfmt
+      - run: rustup toolchain install nightly --profile minimal --component miri,rust-src
       - run: rustup default nightly
 
       - run: cargo miri test --verbose
 
-      - run: cargo clippy
-      - run: cargo fmt --all -- --check
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - run: rustup toolchain install nightly --profile minimal --component clippy,rustfmt
+      - run: rustup default nightly
+
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo fmt -- --check

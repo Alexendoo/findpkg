@@ -155,9 +155,7 @@ fn found() -> Result<()> {
 
     for &(command, expected) in cases {
         match db.search(command)? {
-            Entry::Found(msg) => {
-                assert_str_eq(expected, &msg)
-            }
+            Entry::Found(msg) => assert_str_eq(expected, &msg),
             Entry::NotFound => unreachable!(),
         }
     }
