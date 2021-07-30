@@ -1,0 +1,36 @@
+on: [push, pull_request]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        rust-version:
+          - 1.40
+          - 1.48
+          - stable
+
+    steps:
+    - uses: actions/checkout@v2
+    
+    - run: rustup toolchain install ${{ matrix.rust-version }} --profile minimal
+    - run: cargo +${{ matrix.rust-version }} test --verbose
+
+  nightly:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v2
+
+      - run: rustup toolchain install nightly --profile minimal --component miri,clippy,rustfmt
+      - run: rustup default nightly
+      
+      - run: cargo miri test --target x86_64-unknown-linux-gnu
+      - run: cargo miri test --target i686-unknown-linux-gnu
+      
+      - run: cargo clippy
+      - run: cargo fmt --all -- --check
