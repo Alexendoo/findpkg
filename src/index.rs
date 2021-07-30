@@ -2,23 +2,33 @@ use crate::intern::Interner;
 use crate::{phf, Header, Provider, Span, HEADER_VERSION};
 use anyhow::{Context, Result};
 use bytemuck::{bytes_of, cast_slice, Pod};
-use itertools::Itertools;
 use std::convert::TryInto;
 use std::io::prelude::*;
 use std::mem::size_of;
 
-fn find_providers(providers: &[Provider], strings: &Interner, target: &str) -> Span {
-    let start = providers.partition_point(|x| strings.get(x.bin) < target);
-    let end = providers[start..]
-        .iter()
-        .position(|x| strings.get(x.bin) != target)
-        .map(|pos| pos + start)
-        .unwrap_or(providers.len());
+fn bin_providers<'a>(providers: &[Provider], strings: &'a Interner) -> (Vec<&'a str>, Vec<Span>) {
+    let mut names: Vec<&str> = Vec::new();
+    let mut spans: Vec<Span> = Vec::new();
 
-    Span {
-        start: start as u32,
-        end: end as u32,
+    for (i, provider) in providers.iter().enumerate() {
+        let bin_name = strings.get(provider.bin);
+        let duplicate = names
+            .last()
+            .map(|&name| name == bin_name)
+            .unwrap_or(false);
+
+        if duplicate {
+            spans.last_mut().unwrap().end += 1;
+        } else {
+            names.push(bin_name);
+            spans.push(Span {
+                start: i as u32,
+                end: (i + 1) as u32,
+            });
+        }
     }
+
+    (names, spans)
 }
 
 fn byte_len<T: Pod>(slice: &[T]) -> u32 {
@@ -61,11 +71,8 @@ pub fn index(r: impl BufRead, mut w: impl Write) -> Result<()> {
     }
 
     providers.sort_unstable_by_key(|provider| strings.get(provider.bin));
-    let bin_names: Vec<&str> = providers
-        .iter()
-        .map(|provider| strings.get(provider.bin))
-        .dedup()
-        .collect();
+
+    let (bin_names, bin_spans) = bin_providers(&providers, &strings);
 
     let hash_state = phf::generate_hash(&bin_names);
     assert_eq!(bin_names.len(), hash_state.map.len());
@@ -86,8 +93,7 @@ pub fn index(r: impl BufRead, mut w: impl Write) -> Result<()> {
     w.write_all(cast_slice(&hash_state.disps))?;
 
     for &i in &hash_state.map {
-        let bin = bin_names[i];
-        let provider_span = find_providers(&providers, &strings, bin);
+        let provider_span = bin_spans[i];
 
         w.write_all(bytes_of(&provider_span))?;
     }
