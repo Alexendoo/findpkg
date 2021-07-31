@@ -165,7 +165,6 @@ fn found() -> Result<()> {
 
 #[test]
 fn not_found() -> Result<()> {
-    let long = "a-long-name-".repeat(8000);
     let cases = &[
         "LS",
         "",
@@ -173,9 +172,10 @@ fn not_found() -> Result<()> {
         " ",
         "\n",
         "nxcommand",
-        &long,
         "vendor_perl",
         "__pycache__",
+        #[cfg(not(miri))]
+        &"a-long-name-".repeat(8000),
     ];
 
     let db = Database::new(DB)?;
