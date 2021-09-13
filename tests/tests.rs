@@ -154,7 +154,7 @@ fn found() -> Result<()> {
             indoc! {"
                 extra/zziplib\t/usr/bin/zzxordir
             "},
-        )
+        ),
     ];
 
     let db = Database::new(DB)?;
