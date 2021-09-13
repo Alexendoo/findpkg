@@ -1,4 +1,4 @@
-use crate::{phf, Header, Provider, Span, HEADER_VERSION};
+use crate::{Header, Provider, Span, HEADER_VERSION};
 use anyhow::{ensure, Result};
 use bytemuck::{cast_slice, from_bytes, Pod};
 use std::fmt::{self, Write};
@@ -18,8 +18,6 @@ pub enum Entry {
 pub struct Database<'a> {
     header: Header,
     providers: &'a [Provider],
-    disps: &'a [phf::Disp],
-    table: &'a [Span],
     strings: &'a [u8],
 }
 
@@ -34,31 +32,31 @@ impl<'a> Database<'a> {
             String::from_utf8_lossy(&header.version),
         );
 
-        let (providers, rest) = split_cast::<Provider>(rest, header.providers_len);
-        let (disps, rest) = split_cast::<phf::Disp>(rest, header.disps_len);
-        let (table, strings) = split_cast::<Span>(rest, header.table_len);
+        let (providers, strings) = split_cast::<Provider>(rest, header.providers_len);
 
         Ok(Self {
             header,
             providers,
-            disps,
-            table,
             strings,
         })
     }
 
     pub fn search(self, command: &str) -> Result<Entry> {
-        let hashes = phf::hash(command, self.header.hash_key);
-        let index = phf::get_index(&hashes, self.disps, self.table.len());
+        let start = self
+            .providers
+            .partition_point(|provider| self.get_str(provider.bin) < command);
+        let length = self.providers[start..]
+            .iter()
+            .position(|provider| self.get_str(provider.bin) != command)
+            .expect("TODO");
 
-        let providers_span = self.table[index as usize];
-        let bin_providers = providers_span.get(self.providers);
+        let matches = &self.providers[start..start + length];
 
-        if bin_providers[0].bin.get(self.strings) != command.as_bytes() {
+        if matches.is_empty() {
             return Ok(Entry::NotFound);
         }
 
-        let max_len = bin_providers
+        let max_len = matches
             .iter()
             .map(|prov| prov.repo.len() + prov.package_name.len())
             .max()
@@ -66,7 +64,7 @@ impl<'a> Database<'a> {
 
         let mut out = String::new();
 
-        for provider in bin_providers {
+        for provider in matches {
             let repo = self.get_str(provider.repo);
 
             writeln!(
@@ -90,19 +88,15 @@ impl<'a> Database<'a> {
 
 impl<'a> fmt::Debug for Database<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for providers_span in self.table {
-            let bin_providers = providers_span.get(self.providers);
-
-            for provider in bin_providers {
-                writeln!(
-                    f,
-                    "{}/{}\t{}{}",
-                    self.get_str(provider.repo),
-                    self.get_str(provider.package_name),
-                    self.get_str(provider.dir),
-                    self.get_str(provider.bin)
-                )?;
-            }
+        for provider in self.providers {
+            writeln!(
+                f,
+                "{}/{}\t{}{}",
+                self.get_str(provider.repo),
+                self.get_str(provider.package_name),
+                self.get_str(provider.dir),
+                self.get_str(provider.bin)
+            )?;
         }
 
         Ok(())

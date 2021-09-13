@@ -1,32 +1,9 @@
 use crate::intern::Interner;
-use crate::{phf, Header, Provider, Span, HEADER_VERSION};
+use crate::{Header, Provider, HEADER_VERSION};
 use anyhow::{Context, Result};
 use bytemuck::{bytes_of, cast_slice, Pod};
 use std::convert::TryInto;
 use std::io::prelude::*;
-use std::mem::size_of;
-
-fn bin_providers<'a>(providers: &[Provider], strings: &'a Interner) -> (Vec<&'a str>, Vec<Span>) {
-    let mut names: Vec<&str> = Vec::new();
-    let mut spans: Vec<Span> = Vec::new();
-
-    for (i, provider) in providers.iter().enumerate() {
-        let bin_name = strings.get(provider.bin);
-        let duplicate = names.last().map(|&name| name == bin_name).unwrap_or(false);
-
-        if duplicate {
-            spans.last_mut().unwrap().end += 1;
-        } else {
-            names.push(bin_name);
-            spans.push(Span {
-                start: i as u32,
-                end: (i + 1) as u32,
-            });
-        }
-    }
-
-    (names, spans)
-}
 
 fn byte_len<T: Pod>(slice: &[T]) -> u32 {
     cast_slice::<T, u8>(slice).len().try_into().unwrap()
@@ -69,32 +46,15 @@ pub fn index(list: impl BufRead, mut db: impl Write) -> Result<()> {
 
     providers.sort_by_key(|provider| strings.get(provider.bin));
 
-    let (bin_names, bin_spans) = bin_providers(&providers, &strings);
-
-    let hash_state = phf::generate_hash(&bin_names);
-    assert_eq!(bin_names.len(), hash_state.map.len());
-
     let header = Header {
         version: HEADER_VERSION,
 
-        hash_key: hash_state.key,
-
         providers_len: byte_len(&providers),
-        disps_len: byte_len(&hash_state.disps),
-        table_len: (bin_names.len() * size_of::<Span>()).try_into().unwrap(),
         strings_len: strings.buf().len().try_into().unwrap(),
     };
 
     db.write_all(bytes_of(&header))?;
     db.write_all(cast_slice(&providers))?;
-    db.write_all(cast_slice(&hash_state.disps))?;
-
-    for &i in &hash_state.map {
-        let provider_span = bin_spans[i];
-
-        db.write_all(bytes_of(&provider_span))?;
-    }
-
     db.write_all(strings.buf())?;
 
     Ok(())

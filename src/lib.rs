@@ -1,9 +1,7 @@
-#![cfg(target_endian = "little")]
 #![allow(clippy::len_without_is_empty)]
 
 pub mod index;
 mod intern;
-mod phf;
 pub mod search;
 
 use bytemuck::{Pod, Zeroable};
@@ -14,18 +12,14 @@ use std::str;
 pub struct Header {
     version: [u8; 16],
 
-    hash_key: u64,
-
     providers_len: u32,
-    disps_len: u32,
-    table_len: u32,
     strings_len: u32,
 }
 
 unsafe impl Pod for Header {}
 unsafe impl Zeroable for Header {}
 
-pub const HEADER_VERSION: [u8; 16] = *b"fcnf format 001\0";
+pub const HEADER_VERSION: [u8; 16] = *b"fcnf format 002\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
