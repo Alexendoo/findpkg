@@ -149,6 +149,12 @@ fn found() -> Result<()> {
                 community/sh4-elf-binutils          \t/usr/sh4-elf/bin/ld
             "},
         ),
+        (
+            "zzxordir",
+            indoc! {"
+                extra/zziplib\t/usr/bin/zzxordir
+            "},
+        )
     ];
 
     let db = Database::new(DB)?;
@@ -182,7 +188,7 @@ fn not_found() -> Result<()> {
 
     for &command in cases {
         match db.search(command)? {
-            Entry::Found(_) => unreachable!(),
+            Entry::Found(msg) => panic!("Found {}: {}", command, msg),
             Entry::NotFound => {}
         }
     }

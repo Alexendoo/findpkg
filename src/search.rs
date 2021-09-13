@@ -45,12 +45,13 @@ impl<'a> Database<'a> {
         let start = self
             .providers
             .partition_point(|provider| self.get_str(provider.bin) < command);
-        let length = self.providers[start..]
+        let end = self.providers[start..]
             .iter()
             .position(|provider| self.get_str(provider.bin) != command)
-            .expect("TODO");
+            .map(|length| start + length)
+            .unwrap_or(self.providers.len());
 
-        let matches = &self.providers[start..start + length];
+        let matches = &self.providers[start..end];
 
         if matches.is_empty() {
             return Ok(Entry::NotFound);
