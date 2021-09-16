@@ -1,6 +1,6 @@
 use anyhow::Result;
-use fast_command_not_found::index::index;
 use fast_command_not_found::search::{Database, Entry};
+use fast_command_not_found::update::index;
 use indoc::indoc;
 use pretty_assertions::assert_eq;
 use std::fmt;

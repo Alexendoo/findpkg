@@ -1,8 +1,8 @@
 #![allow(clippy::len_without_is_empty)]
 
-pub mod index;
 mod intern;
 pub mod search;
+pub mod update;
 
 use bytemuck::{Pod, Zeroable};
 use std::str;

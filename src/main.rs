@@ -1,11 +1,10 @@
-use anyhow::{anyhow, ensure, Context, Result};
-use fast_command_not_found::index::index;
+use anyhow::{anyhow, Result};
 use fast_command_not_found::search::{Database, Entry};
+use fast_command_not_found::update::{update_pacman, update_stdin};
 use getopts::Options;
 use memmap::Mmap;
-use std::fs::{self, File};
-use std::io::{BufReader, ErrorKind};
-use std::process::{Command, Stdio};
+use std::fs::File;
+use std::io::ErrorKind;
 use std::{env, str};
 
 fn print_help(opts: Options) {
@@ -35,12 +34,13 @@ fn main() -> Result<()> {
     opts.optflag("h", "help", "Print this help menu");
     opts.optflag("v", "version", "Print version information");
     opts.optopt(
-        "",
+        "f",
         "database",
         "Location of the database (default: /var/lib/fast-command-not-found/database)",
         "FILE",
     );
     opts.optflag("u", "update", "Update the database");
+    opts.optflag("i", "stdin", "Read from stdin rather than pacman");
 
     let matches = opts.parse(args)?;
 
@@ -59,31 +59,12 @@ fn main() -> Result<()> {
         .as_deref()
         .unwrap_or("/var/lib/fast-command-not-found/database");
 
+    if matches.opt_present("stdin") {
+        return update_stdin(db_path);
+    }
+
     if matches.opt_present("update") {
-        let temp_path = format!("{}.tmp", db_path);
-        let mut out = File::create(&temp_path)
-            .with_context(|| format!("Failed to create file: {}", &temp_path))?;
-
-        let mut child = Command::new("pacman")
-            .args(&["-Fl", "--machinereadable"])
-            .stdout(Stdio::piped())
-            .spawn()
-            .context("Failed to run pacman")?;
-
-        let child_stdout = BufReader::new(child.stdout.take().unwrap());
-
-        index(child_stdout, &mut out)?;
-
-        let status = child.wait()?;
-        ensure!(status.success(), "Pacman failed: {}", status);
-
-        out.sync_all()?;
-        drop(out);
-
-        fs::rename(&temp_path, db_path)
-            .with_context(|| format!("Failed to rename {} -> {}", &temp_path, db_path))?;
-
-        return Ok(());
+        return update_pacman(db_path);
     }
 
     if let [command] = &*matches.free {
