@@ -9,17 +9,21 @@ fn byte_len<T: Pod>(slice: &[T]) -> u32 {
     cast_slice::<T, u8>(slice).len().try_into().unwrap()
 }
 
-pub fn index(list: impl BufRead, mut db: impl Write) -> Result<()> {
+pub fn index(mut list: impl BufRead, mut db: impl Write) -> Result<()> {
     let mut strings = Interner::new();
     let mut providers = Vec::new();
 
-    for line in list.lines() {
-        let line = line.context("pacman stdout not valid UTF-8")?;
+    let mut line = String::new();
 
+    loop {
+        line.clear();
+        if list.read_line(&mut line).context("Failed to read line")? == 0 {
+            break;
+        }
         let mut parts = line.rsplit('\0');
         let mut pop = || parts.next().context("Unexpeted end of line");
 
-        let path = pop()?;
+        let path = pop()?.trim_end();
 
         if path.ends_with('/') {
             continue;
