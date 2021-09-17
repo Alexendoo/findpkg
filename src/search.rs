@@ -63,14 +63,14 @@ impl<'a> Database<'a> {
             .max()
             .unwrap();
 
-        let mut out = String::new();
+        let mut out = format!("{} may be found in the following packages:\n", command);
 
         for provider in matches {
             let repo = self.get_str(provider.repo);
 
             writeln!(
                 out,
-                "{}/{:padding$}\t/{}{}",
+                "  {}/{:padding$}\t/{}{}",
                 repo,
                 self.get_str(provider.package_name),
                 self.get_str(provider.dir),
