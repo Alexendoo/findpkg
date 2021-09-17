@@ -6,6 +6,7 @@ use std::convert::TryInto;
 use std::fs::{self, File};
 use std::io::prelude::*;
 use std::io::{self, BufReader};
+use std::path::Path;
 use std::process::{Command, Stdio};
 
 fn byte_len<T: Pod>(slice: &[T]) -> u32 {
@@ -68,6 +69,11 @@ pub fn index(mut list: impl BufRead, mut db: impl Write) -> Result<()> {
 }
 
 fn update(db_path: &str, reader: impl BufRead) -> Result<()> {
+    let db_dir = Path::new(db_path)
+        .parent()
+        .with_context(|| format!("Invalid DB path: {}", db_path))?;
+    fs::create_dir_all(db_dir)?;
+
     let temp_path = format!("{}.tmp", db_path);
     let mut out = File::create(&temp_path)
         .with_context(|| format!("Failed to create file: {}", &temp_path))?;
@@ -80,10 +86,16 @@ fn update(db_path: &str, reader: impl BufRead) -> Result<()> {
     fs::rename(&temp_path, db_path)
         .with_context(|| format!("Failed to rename {} -> {}", &temp_path, db_path))?;
 
-    return Ok(());
+    Ok(())
 }
 
 pub fn update_pacman(db_path: &str) -> Result<()> {
+    let status = Command::new("pacman")
+        .arg("-Fy")
+        .status()
+        .context("Failed to run pacman")?;
+    ensure!(status.success(), "Pacman failed: {}", status);
+
     let mut child = Command::new("pacman")
         .args(&["-Fl", "--machinereadable"])
         .stdout(Stdio::piped())
