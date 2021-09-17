@@ -2,6 +2,7 @@ on: [push, pull_request]
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: 1
 
 jobs:
@@ -45,3 +46,14 @@ jobs:
 
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo fmt -- --check
+
+  integration:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - run: pacman -Syu --noconfirm rust
+
+      - run: ./tests/integration.sh
