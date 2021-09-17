@@ -89,12 +89,14 @@ fn update(db_path: &str, reader: impl BufRead) -> Result<()> {
     Ok(())
 }
 
-pub fn update_pacman(db_path: &str) -> Result<()> {
-    let status = Command::new("pacman")
-        .arg("-Fy")
-        .status()
-        .context("Failed to run pacman")?;
-    ensure!(status.success(), "Pacman failed: {}", status);
+pub fn update_pacman(db_path: &str, offline: bool) -> Result<()> {
+    if !offline {
+        let status = Command::new("pacman")
+            .arg("-Fy")
+            .status()
+            .context("Failed to run pacman")?;
+        ensure!(status.success(), "Pacman failed: {}", status);
+    }
 
     let mut child = Command::new("pacman")
         .args(&["-Fl", "--machinereadable"])

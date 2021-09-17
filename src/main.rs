@@ -40,6 +40,7 @@ fn main() -> Result<()> {
         "FILE",
     );
     opts.optflag("u", "update", "Update the database");
+    opts.optflag("", "offline", "Don't run pacman -Fy");
     opts.optflag("i", "stdin", "Read from stdin rather than pacman");
 
     let matches = opts.parse(args)?;
@@ -64,7 +65,7 @@ fn main() -> Result<()> {
     }
 
     if matches.opt_present("update") {
-        return update_pacman(db_path);
+        return update_pacman(db_path, matches.opt_present("offline"));
     }
 
     if let [command] = &*matches.free {
