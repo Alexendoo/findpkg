@@ -50,6 +50,7 @@ fn create_full() -> Result<()> {
 
 #[test]
 fn create_small() -> Result<()> {
+    #[rustfmt::skip]
     let list = unindent("
         core\0dash\00.5.11.3-1\0usr/
         core\0dash\00.5.11.3-1\0usr/bin/

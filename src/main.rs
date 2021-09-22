@@ -5,6 +5,7 @@ use getopts::Options;
 use memmap::Mmap;
 use std::fs::File;
 use std::io::ErrorKind;
+use std::process::exit;
 use std::{env, str};
 
 fn print_help(opts: Options) {
@@ -68,22 +69,25 @@ fn main() -> Result<()> {
         return update_pacman(db_path, matches.opt_present("offline"));
     }
 
-    if let [command] = &*matches.free {
-        let db_file = File::open(db_path).map_err(|e| match e.kind() {
-            ErrorKind::NotFound => anyhow!(
-                "Database file not found: {}\n\nTry running `fast-command-not-found --update`",
-                db_path
-            ),
-            _ => anyhow!("Failed to open database {}\n\n{}", db_path, e),
-        })?;
-        let mmap = unsafe { Mmap::map(&db_file)? };
-
-        match Database::new(&mmap)?.search(command)? {
-            Entry::Found(msg) => print!("{}", msg),
-            Entry::NotFound => println!("Command not found: {}", command),
-        }
-    } else {
+    if matches.free.len() != 1 {
         print_help(opts);
+        exit(1);
+    }
+
+    let command = &matches.free[0];
+
+    let db_file = File::open(db_path).map_err(|e| match e.kind() {
+        ErrorKind::NotFound => anyhow!(
+            "Database file not found: {}\n\nTry running `fast-command-not-found --update`",
+            db_path
+        ),
+        _ => anyhow!("Failed to open database {}\n\n{}", db_path, e),
+    })?;
+    let mmap = unsafe { Mmap::map(&db_file)? };
+
+    match Database::new(&mmap)?.search(command)? {
+        Entry::Found(msg) => print!("{}", msg),
+        Entry::NotFound => println!("Command not found: {}", command),
     }
 
     Ok(())
