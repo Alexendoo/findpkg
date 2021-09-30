@@ -75,7 +75,7 @@ impl<'a> Database<'a> {
                 package,
                 self.get(provider.dir),
                 self.get(provider.bin),
-                padding = max_len - package.len(),
+                padding = max_len,
             )
             .unwrap();
         }
