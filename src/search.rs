@@ -60,23 +60,22 @@ impl<'a> Database<'a> {
 
         let max_len = matches
             .iter()
-            .map(|prov| self.get(prov.repo).len() + self.get(prov.package_name).len())
+            .map(|prov| self.get(prov.package).len())
             .max()
             .unwrap();
 
         let mut out = format!("{} may be found in the following packages:\n", command);
 
         for provider in matches {
-            let repo = self.get(provider.repo);
+            let package = self.get(provider.package).to_str_lossy();
 
             writeln!(
                 out,
-                "  {}/{:padding$}\t/{}{}",
-                repo,
-                self.get(provider.package_name).to_str_lossy(),
+                "  {:padding$}\t/{}{}",
+                package,
                 self.get(provider.dir),
                 self.get(provider.bin),
-                padding = max_len - repo.len(),
+                padding = max_len - package.len(),
             )
             .unwrap();
         }
@@ -97,9 +96,8 @@ impl<'a> fmt::Debug for Database<'a> {
         for provider in self.providers {
             writeln!(
                 f,
-                "{}/{}\t{}{}",
-                self.get(provider.repo),
-                self.get(provider.package_name),
+                "{}\t{}{}",
+                self.get(provider.package),
                 self.get(provider.dir),
                 self.get(provider.bin)
             )?;

@@ -41,12 +41,11 @@ pub fn index(mut list: impl BufRead, mut db: impl Write) -> Result<()> {
         }
 
         let _pkgver = pop()?;
-        let package_name = strings.add(pop()?);
-        let repo = strings.add(pop()?);
+        let package_name = pop()?;
+        let repo = pop()?;
 
         providers.push(Provider {
-            repo,
-            package_name,
+            package: strings.add(&format!("{}/{}", repo, package_name)),
             dir: strings.add(dir),
             bin: strings.add(bin),
         });
