@@ -1,5 +1,6 @@
-use crate::{Header, Provider, Span, HEADER_VERSION};
+use crate::{Header, Provider, HEADER_VERSION};
 use anyhow::{ensure, Result};
+use bstr::{BStr, ByteSlice};
 use bytemuck::{cast_slice, from_bytes, Pod};
 use std::fmt::{self, Write};
 use std::{mem, str};
@@ -41,49 +42,53 @@ impl<'a> Database<'a> {
         })
     }
 
-    pub fn search(self, command: &str) -> Result<Entry> {
+    pub fn search(self, command: &str) -> Option<String> {
         let start = self
             .providers
-            .partition_point(|provider| self.get_str(provider.bin) < command);
+            .partition_point(|provider| self.get(provider.bin) < command);
         let end = self.providers[start..]
             .iter()
-            .position(|provider| self.get_str(provider.bin) != command)
+            .position(|provider| self.get(provider.bin) != command)
             .map(|length| start + length)
             .unwrap_or(self.providers.len());
 
         let matches = &self.providers[start..end];
 
         if matches.is_empty() {
-            return Ok(Entry::NotFound);
+            return None;
         }
 
         let max_len = matches
             .iter()
-            .map(|prov| prov.repo.len() + prov.package_name.len())
+            .map(|prov| self.get(prov.repo).len() + self.get(prov.package_name).len())
             .max()
             .unwrap();
 
         let mut out = format!("{} may be found in the following packages:\n", command);
 
         for provider in matches {
-            let repo = self.get_str(provider.repo);
+            let repo = self.get(provider.repo);
 
             writeln!(
                 out,
                 "  {}/{:padding$}\t/{}{}",
                 repo,
-                self.get_str(provider.package_name),
-                self.get_str(provider.dir),
-                self.get_str(provider.bin),
+                self.get(provider.package_name).to_str_lossy(),
+                self.get(provider.dir),
+                self.get(provider.bin),
                 padding = max_len - repo.len(),
-            )?;
+            )
+            .unwrap();
         }
 
-        Ok(Entry::Found(out))
+        Some(out)
     }
 
-    fn get_str(&self, span: Span) -> &str {
-        span.get_str(self.strings)
+    fn get(&self, offset: u32) -> &BStr {
+        let s = &self.strings[offset as usize..];
+        let end = s.find_byte(b'\n').expect("Unterminated string");
+
+        dbg!(s[..end].as_bstr())
     }
 }
 
@@ -93,10 +98,10 @@ impl<'a> fmt::Debug for Database<'a> {
             writeln!(
                 f,
                 "{}/{}\t{}{}",
-                self.get_str(provider.repo),
-                self.get_str(provider.package_name),
-                self.get_str(provider.dir),
-                self.get_str(provider.bin)
+                self.get(provider.repo),
+                self.get(provider.package_name),
+                self.get(provider.dir),
+                self.get(provider.bin)
             )?;
         }
 

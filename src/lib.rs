@@ -5,7 +5,6 @@ pub mod search;
 pub mod update;
 
 use bytemuck::{Pod, Zeroable};
-use std::str;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(C)]
@@ -19,39 +18,15 @@ pub struct Header {
 unsafe impl Pod for Header {}
 unsafe impl Zeroable for Header {}
 
-pub const HEADER_VERSION: [u8; 16] = *b"fcnf format 002\0";
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(C)]
-pub struct Span {
-    pub start: u32,
-    pub end: u32,
-}
-
-unsafe impl Pod for Span {}
-unsafe impl Zeroable for Span {}
-
-impl Span {
-    pub fn get<T>(self, slice: &[T]) -> &[T] {
-        &slice[self.start as usize..self.end as usize]
-    }
-
-    pub fn get_str(self, bytes: &[u8]) -> &str {
-        str::from_utf8(self.get(bytes)).unwrap()
-    }
-
-    pub fn len(self) -> usize {
-        (self.end - self.start) as usize
-    }
-}
+pub const HEADER_VERSION: [u8; 16] = *b"fcnf format 003\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub struct Provider {
-    repo: Span,
-    package_name: Span,
-    dir: Span,
-    bin: Span,
+    repo: u32,
+    package_name: u32,
+    dir: u32,
+    bin: u32,
 }
 
 unsafe impl Pod for Provider {}

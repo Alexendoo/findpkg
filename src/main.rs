@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use fast_command_not_found::search::{Database, Entry};
+use fast_command_not_found::search::Database;
 use fast_command_not_found::update::{update_pacman, update_stdin};
 use getopts::Options;
 use memmap::Mmap;
@@ -85,9 +85,9 @@ fn main() -> Result<()> {
     })?;
     let mmap = unsafe { Mmap::map(&db_file)? };
 
-    match Database::new(&mmap)?.search(command)? {
-        Entry::Found(msg) => print!("{}", msg),
-        Entry::NotFound => println!("Command not found: {}", command),
+    match Database::new(&mmap)?.search(command) {
+        Some(msg) => print!("{}", msg),
+        None => println!("Command not found: {}", command),
     }
 
     Ok(())

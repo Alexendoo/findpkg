@@ -1,10 +1,9 @@
-use crate::Span;
 use std::collections::HashMap;
 use std::str;
 
 #[derive(Debug, Default)]
 pub struct Interner {
-    spans: HashMap<String, Span>,
+    offsets: HashMap<String, u32>,
     buf: String,
 }
 
@@ -13,25 +12,26 @@ impl Interner {
         Self::default()
     }
 
-    pub fn add(&mut self, s: &str) -> Span {
-        match self.spans.get(s) {
-            Some(&span) => span,
+    pub fn add(&mut self, s: &str) -> u32 {
+        match self.offsets.get(s) {
+            Some(&offset) => offset,
             None => {
-                let start = self.buf.len() as u32;
-                let end = start + s.len() as u32;
-
-                let span = Span { start, end };
+                let offset = self.buf.len() as u32;
 
                 self.buf.push_str(s);
-                self.spans.insert(s.to_string(), span);
+                self.buf.push('\n');
+                self.offsets.insert(s.to_string(), offset);
 
-                span
+                offset
             }
         }
     }
 
-    pub fn get(&self, span: Span) -> &str {
-        span.get_str(self.buf())
+    pub fn get(&self, offset: u32) -> &str {
+        let s = &self.buf[offset as usize..];
+        let end = s.find('\n').expect("Unterminated string");
+
+        &s[..end]
     }
 
     pub fn buf(&self) -> &[u8] {
@@ -48,21 +48,21 @@ mod tests {
     fn add() {
         let mut strings = Interner::new();
 
-        let mut add_assert = |s, start, end| {
+        let mut add_assert = |s, offset| {
             let interned = strings.add(s);
 
             assert_eq!(strings.get(interned), s);
-            assert_eq!(interned, Span { start, end });
+            assert_eq!(interned, offset);
         };
 
-        add_assert("foo", 0, 3);
-        add_assert("foo", 0, 3);
+        add_assert("foo", 0);
+        add_assert("foo", 0);
 
-        add_assert("bar", 3, 6);
-        add_assert("bar", 3, 6);
+        add_assert("bar", 4);
+        add_assert("bar", 4);
 
-        add_assert("foo", 0, 3);
+        add_assert("foo", 0);
 
-        assert_eq!(strings.buf(), b"foobar");
+        assert_eq!(strings.buf(), b"foo\nbar\n");
     }
 }

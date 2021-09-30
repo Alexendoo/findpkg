@@ -1,5 +1,5 @@
 use anyhow::Result;
-use fast_command_not_found::search::{Database, Entry};
+use fast_command_not_found::search::Database;
 use fast_command_not_found::update::index;
 use pretty_assertions::assert_eq;
 use std::fmt;
@@ -17,13 +17,14 @@ macro_rules! include_db {
     }};
 }
 
+#[track_caller]
 fn assert_str_eq(left: &str, right: &str) {
     #[derive(PartialEq)]
     struct DisplayAsDebug<'a>(&'a str);
 
     impl fmt::Debug for DisplayAsDebug<'_> {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "{}", self.0)
+            write!(f, "{}", self.0.replace('\t', "\\t"))
         }
     }
 
@@ -167,10 +168,7 @@ fn found() -> Result<()> {
     let db = Database::new(DB)?;
 
     for (command, expected) in cases {
-        match db.search(command)? {
-            Entry::Found(msg) => assert_str_eq(expected, &msg),
-            Entry::NotFound => unreachable!(),
-        }
+        assert_str_eq(expected, &db.search(command).unwrap());
     }
 
     Ok(())
@@ -194,9 +192,8 @@ fn not_found() -> Result<()> {
     let db = Database::new(DB)?;
 
     for &command in cases {
-        match db.search(command)? {
-            Entry::Found(msg) => panic!("Found {}: {}", command, msg),
-            Entry::NotFound => {}
+        if let Some(msg) = db.search(command) {
+            panic!("Found {}: {}", command, msg);
         }
     }
 
