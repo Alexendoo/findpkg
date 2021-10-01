@@ -1,6 +1,5 @@
 use crate::{Header, Provider, HEADER_VERSION};
 use anyhow::{ensure, Result};
-use bstr::{BStr, ByteSlice};
 use bytemuck::{cast_slice, from_bytes, Pod};
 use std::fmt::{self, Write};
 use std::{mem, str};
@@ -67,12 +66,10 @@ impl<'a> Database<'a> {
         let mut out = format!("{} may be found in the following packages:\n", command);
 
         for provider in matches {
-            let package = self.get(provider.package).to_str_lossy();
-
             writeln!(
                 out,
                 "  {:padding$}\t/{}{}",
-                package,
+                self.get(provider.package),
                 self.get(provider.dir),
                 self.get(provider.bin),
                 padding = max_len,
@@ -83,11 +80,14 @@ impl<'a> Database<'a> {
         Some(out)
     }
 
-    fn get(&self, offset: u32) -> &BStr {
+    fn get(&self, offset: u32) -> &str {
         let s = &self.strings[offset as usize..];
-        let end = s.find_byte(b'\n').expect("Unterminated string");
+        let end = s
+            .iter()
+            .position(|&b| b == b'\n')
+            .expect("Unterminated string");
 
-        dbg!(s[..end].as_bstr())
+        str::from_utf8(&s[..end]).unwrap()
     }
 }
 

@@ -1,10 +1,10 @@
-use bstr::{BStr, BString, ByteSlice, ByteVec};
 use std::collections::HashMap;
+use std::str;
 
 #[derive(Debug, Default)]
 pub struct Interner {
-    offsets: HashMap<BString, u32>,
-    buf: BString,
+    offsets: HashMap<String, u32>,
+    buf: String,
 }
 
 impl Interner {
@@ -12,27 +12,26 @@ impl Interner {
         Self::default()
     }
 
-    pub fn add(&mut self, s: &[u8]) -> u32 {
-        let s = s.as_bstr();
+    pub fn add(&mut self, s: &str) -> u32 {
         match self.offsets.get(s) {
             Some(&offset) => offset,
             None => {
                 let offset = self.buf.len() as u32;
 
                 self.buf.push_str(s);
-                self.buf.push(b'\n');
-                self.offsets.insert(s.to_owned(), offset);
+                self.buf.push('\n');
+                self.offsets.insert(s.to_string(), offset);
 
                 offset
             }
         }
     }
 
-    pub fn get(&self, offset: u32) -> &BStr {
+    pub fn get(&self, offset: u32) -> &str {
         let s = &self.buf[offset as usize..];
-        let end = s.find_byte(b'\n').expect("Unterminated string");
+        let end = s.find('\n').expect("Unterminated string");
 
-        s[..end].as_bstr()
+        &s[..end]
     }
 
     pub fn buf(&self) -> &[u8] {
@@ -49,8 +48,7 @@ mod tests {
     fn add() {
         let mut strings = Interner::new();
 
-        let mut add_assert = |s: &str, offset| {
-            let s = s.as_bytes();
+        let mut add_assert = |s, offset| {
             let interned = strings.add(s);
 
             assert_eq!(strings.get(interned), s);
