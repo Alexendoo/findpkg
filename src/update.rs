@@ -1,6 +1,8 @@
 use crate::intern::Interner;
 use crate::{Header, Provider, HEADER_VERSION};
 use anyhow::{ensure, Context, Result};
+use bstr::io::BufReadExt;
+use bstr::ByteSlice;
 use bytemuck::{bytes_of, cast_slice, Pod};
 use std::convert::TryInto;
 use std::fs::{self, File};
@@ -13,43 +15,39 @@ fn byte_len<T: Pod>(slice: &[T]) -> u32 {
     cast_slice::<T, u8>(slice).len().try_into().unwrap()
 }
 
-pub fn index(mut list: impl BufRead, mut db: impl Write) -> Result<()> {
+pub fn index(list: impl BufRead, mut db: impl Write) -> Result<()> {
     let mut strings = Interner::new();
     let mut providers = Vec::new();
 
-    let mut line = String::new();
+    list.for_byte_line(|line| {
+        let mut parts = line.rsplit(|&ch| ch == b'\0');
+        let mut pop = || parts.next().expect("Unexpeted end of line").as_bstr();
 
-    loop {
-        line.clear();
-        if list.read_line(&mut line).context("Failed to read line")? == 0 {
-            break;
+        let path = pop();
+
+        if path.ends_with(b"/") {
+            return Ok(true);
         }
-        let mut parts = line.rsplit('\0');
-        let mut pop = || parts.next().context("Unexpeted end of line");
-
-        let path = pop()?.trim_end();
-
-        if path.ends_with('/') {
-            continue;
-        }
-        let (dir, bin) = match path.rfind('/') {
+        let (dir, bin) = match path.rfind_byte(b'/') {
             Some(pos) => path.split_at(pos + 1),
-            None => continue,
+            None => return Ok(true),
         };
-        if !dir.ends_with("/bin/") {
-            continue;
+        if !dir.ends_with(b"/bin/") {
+            return Ok(true);
         }
 
-        let _pkgver = pop()?;
-        let package_name = pop()?;
-        let repo = pop()?;
+        let _pkgver = pop();
+        let package_name = pop();
+        let repo = pop();
 
         providers.push(Provider {
-            package: strings.add(&format!("{}/{}", repo, package_name)),
+            package: strings.add(format!("{}/{}", repo, package_name).as_bytes()),
             dir: strings.add(dir),
             bin: strings.add(bin),
         });
-    }
+
+        Ok(true)
+    })?;
 
     providers.sort_by_key(|provider| strings.get(provider.bin));
 

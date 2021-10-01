@@ -23,16 +23,16 @@ jobs:
     - run: rustup toolchain install ${{ matrix.rust-version }} --profile minimal
     - run: cargo +${{ matrix.rust-version }} test --verbose
 
-  MIRI:
-    runs-on: ubuntu-latest
+  # MIRI:
+  #   runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v2
+  #   steps:
+  #     - uses: actions/checkout@v2
 
-      - run: rustup toolchain install nightly --profile minimal --component miri,rust-src
-      - run: rustup default nightly
+  #     - run: rustup toolchain install nightly --profile minimal --component miri,rust-src
+  #     - run: rustup default nightly
 
-      - run: cargo miri test --verbose
+  #     - run: cargo miri test --verbose
 
 
   lint:
