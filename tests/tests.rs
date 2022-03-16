@@ -33,7 +33,7 @@ fn assert_str_eq(left: &str, right: &str) {
 static DB_BYTES: &[u8] = include_db!("database");
 
 #[test]
-fn create_small() -> Result<()> {
+fn create() -> Result<()> {
     let list = include_str!("list.csv").replace(',', "\0");
 
     let mut db = Vec::new();

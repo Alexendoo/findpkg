@@ -15,8 +15,9 @@ fn print_help(opts: Options) {
 
         e.g. `findpkg units` would display:
 
-        community/units    \t/usr/bin/units
-        community/plan9port\t/usr/lib/plan9/bin/units";
+        units may be found in the following packages:
+          community/units    \t/usr/bin/units
+          community/plan9port\t/usr/lib/plan9/bin/units";
 
     print!("{}", opts.usage(USAGE));
 }
@@ -39,7 +40,7 @@ fn main() -> Result<()> {
     );
     opts.optflag("u", "update", "Update the database");
     opts.optflag("", "offline", "Don't run pacman -Fy");
-    opts.optflag("i", "stdin", "Read from stdin rather than pacman");
+    opts.optflag("", "stdin", "Read from stdin rather than pacman");
 
     let matches = opts.parse(args)?;
 
