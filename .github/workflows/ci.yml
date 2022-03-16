@@ -13,7 +13,7 @@ jobs:
       fail-fast: false
       matrix:
         rust-version:
-          - "1.52"
+          - "1.56"
           - stable
           - nightly
 
