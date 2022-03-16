@@ -1,11 +1,10 @@
 use anyhow::Result;
-use fast_command_not_found::search::Database;
-use fast_command_not_found::update::index;
+use findpkg::search::Database;
+use findpkg::update::index;
 use pretty_assertions::assert_eq;
-use std::fmt;
-use std::io::BufReader;
+use std::path::Path;
+use std::{env, fmt, fs};
 use unindent::unindent;
-use zstd::Decoder;
 
 macro_rules! include_db {
     ($file:literal) => {{
@@ -31,73 +30,21 @@ fn assert_str_eq(left: &str, right: &str) {
     assert_eq!(DisplayAsDebug(left), DisplayAsDebug(right));
 }
 
-static DB: &[u8] = include_db!("database");
-static SMALL_DB: &[u8] = include_db!("small-database");
-static LIST_ZST: &[u8] = include_bytes!("list.zst");
-
-#[test]
-#[cfg_attr(miri, ignore)]
-fn create_full() -> Result<()> {
-    let list = BufReader::new(Decoder::new(LIST_ZST)?);
-    let mut db = Vec::new();
-
-    index(list, &mut db)?;
-
-    assert_eq!(Database::new(DB)?, Database::new(&db)?);
-    assert!(db == DB);
-
-    Ok(())
-}
+static DB_BYTES: &[u8] = include_db!("database");
 
 #[test]
 fn create_small() -> Result<()> {
-    #[rustfmt::skip]
-    let list = unindent("
-        core\0dash\00.5.11.3-1\0usr/
-        core\0dash\00.5.11.3-1\0usr/bin/
-        core\0dash\00.5.11.3-1\0usr/bin/dash
-        core\0dash\00.5.11.3-1\0usr/share/
-        core\0dash\00.5.11.3-1\0usr/share/licenses/
-        core\0dash\00.5.11.3-1\0usr/share/licenses/dash/
-        core\0dash\00.5.11.3-1\0usr/share/licenses/dash/COPYING
-        core\0dash\00.5.11.3-1\0usr/share/man/
-        core\0dash\00.5.11.3-1\0usr/share/man/man1/
-        core\0dash\00.5.11.3-1\0usr/share/man/man1/dash.1.gz
-        core\0diffutils\03.7-3\0usr/
-        core\0diffutils\03.7-3\0usr/bin/
-        core\0diffutils\03.7-3\0usr/bin/cmp
-        core\0diffutils\03.7-3\0usr/bin/diff
-        core\0diffutils\03.7-3\0usr/bin/diff3
-        core\0diffutils\03.7-3\0usr/bin/sdiff
-        core\0diffutils\03.7-3\0usr/share/
-        core\0diffutils\03.7-3\0usr/share/info/
-        core\0diffutils\03.7-3\0usr/share/info/diffutils.info.gz
-        core\0dnssec-anchors\020190629-3\0etc/
-        core\0dnssec-anchors\020190629-3\0etc/trusted-key.key
-        core\0dnssec-anchors\020190629-3\0usr/
-        core\0dnssec-anchors\020190629-3\0usr/share/
-        core\0dnssec-anchors\020190629-3\0usr/share/licenses/
-        core\0dnssec-anchors\020190629-3\0usr/share/licenses/dnssec-anchors/
-        core\0dnssec-anchors\020190629-3\0usr/share/licenses/dnssec-anchors/LICENSE
-        extra\0tree\01.8.0-2\0usr/
-        extra\0tree\01.8.0-2\0usr/bin/
-        extra\0tree\01.8.0-2\0usr/bin/tree
-        extra\0tree\01.8.0-2\0usr/share/
-        extra\0tree\01.8.0-2\0usr/share/man/
-        extra\0tree\01.8.0-2\0usr/share/man/man1/
-        extra\0tree\01.8.0-2\0usr/share/man/man1/tree.1.gz
-        community\0weechat\03.0-2\0usr/
-        community\0weechat\03.0-2\0usr/bin/
-        community\0weechat\03.0-2\0usr/bin/weechat
-        community\0weechat\03.0-2\0usr/bin/weechat-curses
-        community\0weechat\03.0-2\0usr/bin/weechat-headless
-    ");
+    let list = include_str!("list.csv").replace(',', "\0");
 
     let mut db = Vec::new();
 
     index(list.as_bytes(), &mut db)?;
 
-    assert!(db == SMALL_DB);
+    if db != DB_BYTES {
+        let path = Path::new(env!("CARGO_TARGET_TMPDIR")).join("database");
+        fs::write(&path, db).unwrap();
+        panic!("Database did not match, generated: {}", path.display());
+    }
 
     Ok(())
 }
@@ -105,15 +52,6 @@ fn create_small() -> Result<()> {
 #[test]
 fn found() -> Result<()> {
     let cases = &[
-        (
-            "ls",
-            unindent("
-                ls may be found in the following packages:
-                  core/coreutils     \t/usr/bin/ls
-                  community/9base    \t/opt/plan9/bin/ls
-                  community/plan9port\t/usr/lib/plan9/bin/ls
-            "),
-        ),
         (
             "openssl",
             unindent("
@@ -165,7 +103,7 @@ fn found() -> Result<()> {
         ),
     ];
 
-    let db = Database::new(DB)?;
+    let db = Database::new(DB_BYTES)?;
 
     for (command, expected) in cases {
         assert_str_eq(expected, &db.search(command).unwrap());
@@ -189,7 +127,7 @@ fn not_found() -> Result<()> {
         &"a-long-name-".repeat(8000),
     ];
 
-    let db = Database::new(DB)?;
+    let db = Database::new(DB_BYTES)?;
 
     for &command in cases {
         if let Some(msg) = db.search(command) {

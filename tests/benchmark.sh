@@ -8,10 +8,10 @@ sudo -v
 
 # Cold cache
 hyperfine -p 'sudo tee /proc/sys/vm/drop_caches <<< 3' \
-	'./target/release/fast-command-not-found typo' \
+	'./target/release/findpkg typo' \
 	'! pkgfile -bv -- typo'
 
 # Warm cache
 hyperfine -w 3 \
-	'./target/release/fast-command-not-found typo' \
+	'./target/release/findpkg typo' \
 	'! pkgfile -bv -- typo' \

@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
-use fast_command_not_found::search::Database;
-use fast_command_not_found::update::{update_pacman, update_stdin};
+use findpkg::search::Database;
+use findpkg::update::{update_pacman, update_stdin};
 use getopts::Options;
 use memmap::Mmap;
 use std::fs::File;
@@ -10,10 +10,10 @@ use std::{env, str};
 
 fn print_help(opts: Options) {
     const USAGE: &str = "Usage:
-    fast-command-not-found [OPTIONS] COMMAND
+    findpkg [OPTIONS] COMMAND
         Shows any known packages that provide COMMAND
 
-        e.g. `fast-command-not-found units` would display:
+        e.g. `findpkg units` would display:
 
         community/units    \t/usr/bin/units
         community/plan9port\t/usr/lib/plan9/bin/units";
@@ -22,10 +22,7 @@ fn print_help(opts: Options) {
 }
 
 fn print_version(_opts: Options) {
-    println!(concat!(
-        "fast-command-not-found v",
-        env!("CARGO_PKG_VERSION")
-    ));
+    println!(concat!("findpkg v", env!("CARGO_PKG_VERSION")));
 }
 
 fn main() -> Result<()> {
@@ -37,7 +34,7 @@ fn main() -> Result<()> {
     opts.optopt(
         "f",
         "database",
-        "Location of the database (default: /var/lib/fast-command-not-found/database)",
+        "Location of the database (default: /var/lib/findpkg/database)",
         "FILE",
     );
     opts.optflag("u", "update", "Update the database");
@@ -57,9 +54,7 @@ fn main() -> Result<()> {
     }
 
     let db_path = matches.opt_str("database");
-    let db_path = db_path
-        .as_deref()
-        .unwrap_or("/var/lib/fast-command-not-found/database");
+    let db_path = db_path.as_deref().unwrap_or("/var/lib/findpkg/database");
 
     if matches.opt_present("stdin") {
         return update_stdin(db_path);
@@ -78,7 +73,7 @@ fn main() -> Result<()> {
 
     let db_file = File::open(db_path).map_err(|e| match e.kind() {
         ErrorKind::NotFound => anyhow!(
-            "Database file not found: {}\n\nTry running `fast-command-not-found --update`",
+            "Database file not found: {}\n\nTry running `findpkg --update`",
             db_path
         ),
         _ => anyhow!("Failed to open database {}\n\n{}", db_path, e),

@@ -18,7 +18,7 @@ pub struct Header {
 unsafe impl Pod for Header {}
 unsafe impl Zeroable for Header {}
 
-pub const HEADER_VERSION: [u8; 16] = *b"fcnf format 004\0";
+pub const HEADER_VERSION: [u8; 16] = *b"findpkg db v001\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]

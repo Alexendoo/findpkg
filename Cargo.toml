@@ -1,5 +1,5 @@
 [package]
-name = "fast-command-not-found"
+name = "findpkg"
 version = "0.1.0"
 authors = ["Alex Macleod <alex@macleod.io>"]
 edition = "2018"
@@ -15,4 +15,3 @@ memmap = "0.7"
 [dev-dependencies]
 unindent = "0.1"
 pretty_assertions = "1"
-zstd = "0.9"
