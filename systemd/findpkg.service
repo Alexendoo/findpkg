@@ -1,0 +1,8 @@
+[Unit]
+Description=Update findpkg database
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/findpkg --update
