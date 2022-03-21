@@ -60,7 +60,7 @@ end
 funcsave fish_command_not_found
 ```
 
-### zsh
+### Zsh
 
 Add the following to `~/.zshrc`
 
